@@ -1,0 +1,10 @@
+traefik:  
+  ingressRoute:
+      dashboard:
+          enabled: true
+          entryPoints: ["web", "websecure"]
+          matchRule: Host(`traefik.myr-project.eu`) && PathPrefix(`/dashboard`)
+  service:
+    externalIPs:
+      - 34.175.175.3
+      - 34.175.155.111
