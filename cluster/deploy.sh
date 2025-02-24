@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Set the region
-export REGION="eu"
+export REGION="europe-west9-a"
 
 # Create Instance Group
 gcloud compute instance-groups unmanaged create talos-ig \
@@ -43,6 +43,12 @@ gcloud compute forwarding-rules create talos-fwd-rule \
   --ports 443 \
   --address talos-lb-ip \
   --target-tcp-proxy talos-tcp-proxy
+
+# Create firewall rule to allow all access
+gcloud compute firewall-rules create talos-controlplane-talosctl \
+--source-ranges 0.0.0.0/0 \
+--target-tags talos-controlplane \
+--allow tcp:0-65535,udp:0-65535
 
 # Create the control plane nodes
 for i in $(seq 1 2); do
