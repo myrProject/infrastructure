@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Set the region
-export REGION="europe-west9-a"
+export REGION="europe-southwest1-a"
 
 # Create Instance Group
 gcloud compute instance-groups unmanaged create talos-ig \
@@ -54,7 +54,7 @@ gcloud compute firewall-rules create talos-controlplane-talosctl \
 for i in $(seq 1 2); do
   gcloud compute instances create talos-controlplane-$i \
     --image talos \
-    --zone "europe-southwest1-a" \
+    --zone "$REGION" \
     --tags talos-controlplane,talos-controlplane-$i \
     --boot-disk-size 100GB \
     --machine-type n2-highcpu-4 \

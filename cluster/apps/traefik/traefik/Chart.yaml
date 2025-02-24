@@ -1,10 +1,7 @@
 apiVersion: v2
 name: traefik
-version: 34.2.0
+version: 34.4.0
 dependencies:
   - name: traefik
-    version: 34.2.0
+    version: 34.4.0
     repository: https://traefik.github.io/charts
-  - name: traefik-crds
-    version: 34.2.0
-    repository: https://github.com/traefik/traefik-helm-chart/traefik/crds/
