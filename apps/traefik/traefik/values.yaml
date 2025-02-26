@@ -1,0 +1,33 @@
+traefik:
+  ingressRoute:
+    dashboard:
+      enabled: true
+      entryPoints: ["web", "websecure"]
+      matchRule: Host(`traefik.myr-project.eu`) && (PathPrefix(`/api`) || PathPrefix(`/dashboard`))
+      services:
+        - name: api@internal
+          kind: TraefikService
+  service:
+    enabled: true
+    hostNetwork: true
+    type: LoadBalancer  # Use LoadBalancer for external access
+    ports:
+      traefik:
+        hostPort: 80
+      web:
+        port: 80        # HTTP port
+        expose: true    # Expose this port
+        nodePort: null
+        default : true
+        nodePort: 31500
+      websecure:
+        port: 443       # HTTPS port
+        expose: true    # Expose this port
+        nodePort: null
+        default : true
+        nodePort: 31500
+    externalIPs:
+      - 34.175.175.3
+      - 34.175.155.111
+  additionalArguments:
+    - "--providers.kubernetesingress.ingressendpoint.publishedservice=traefik/traefik"
