@@ -7,9 +7,10 @@ traefik:
       services:
         - name: api@internal
           kind: TraefikService
+      tls :
+        secretName: traefik-ingressroute-certificate
   service:
     enabled: true
-    hostNetwork: true
     type: LoadBalancer  # Use LoadBalancer for external access
     ports:
       traefik:
