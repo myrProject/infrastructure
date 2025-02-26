@@ -1,12 +1,18 @@
 traefik-build :
     helm template traefik apps/traefik/traefik --namespace traefik > infra/services/traefik.yaml
 
-traefik-create:
+traefik-create: traefik-build
     kubectl create -f apps/traefik/namespace/namespace.yaml
     kubectl create -f infra/services/traefik.yaml
+    kubectl create -f apps/traefik/others/certificate.yaml
+
+traefik-apply : traefik-build
+    kubectl apply -f apps/traefik/others/certificate.yaml
+    kubectl apply -f infra/services/traefik.yaml
 
 traefik-delete:
     kubectl delete -f apps/cert-manager/namespace/namespace.yaml
+    kubectl delete -f apps/traefik/others/certificate.yaml
     kubectl delete -f infra/services/traefik.yaml
 
 cert-manager-build :
@@ -17,6 +23,11 @@ cert-manager-create : cert-manager-build
     kubectl create -f infra/services/cert-manager.yaml
     kubectl create -f apps/cert-manager/others/clusterissuer.yaml
     kubectl create -f apps/cert-manager/others/issuer-secret.yaml
+
+cert-manager-apply : cert-manager-build
+    kubectl apply -f infra/services/cert-manager.yaml
+    kubectl apply -f apps/cert-manager/others/clusterissuer.yaml
+    kubectl apply -f apps/cert-manager/others/issuer-secret.yaml
 
 cert-manager-delete :
     kubectl delete -f apps/cert-manager/namespace/namespace.yaml
