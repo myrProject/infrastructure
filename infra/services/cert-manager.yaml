@@ -13204,13 +13204,15 @@ spec:
         runAsNonRoot: true
         seccompProfile:
           type: RuntimeDefault
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
       containers:
         - name: cert-manager-webhook
           image: "quay.io/jetstack/cert-manager-webhook:v1.17.0"
           imagePullPolicy: IfNotPresent
           args:
           - --v=2
-          - --secure-port=10250
+          - --secure-port=10260
           - --dynamic-serving-ca-secret-namespace=$(POD_NAMESPACE)
           - --dynamic-serving-ca-secret-name=cert-manager-webhook-ca
           - --dynamic-serving-dns-names=cert-manager-webhook
@@ -13220,7 +13222,7 @@ spec:
           ports:
           - name: https
             protocol: TCP
-            containerPort: 10250
+            containerPort: 10260
           - name: healthcheck
             protocol: TCP
             containerPort: 6080
@@ -13481,27 +13483,3 @@ spec:
                 fieldPath: metadata.namespace
       nodeSelector:
         kubernetes.io/os: linux
----
-apiVersion: cert-manager.io/v1
-kind: ClusterIssuer
-metadata:
-  name: digitalocean-clusterissuer
-spec:
-  acme:
-    email: asphalt8fr@gmail.com
-    server: https://acme-v02.api.letsencrypt.org/directory
-    privateKeySecretRef:
-      name: digitalocean-clusterissuer-account-key
-    solvers:
-      - dns01:
-          digitalocean:
-            tokenSecretRef:
-              name: digitalocean-dns
-              key: access-token
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: digitalocean-dns
-data:
-  access-token: "ZG9wX3YxXzIwOGI1NjRiZDE0Y2FmMjMzZTQ4ZDkwNGE3N2IyYTM0ODQ0ZDlmNjM5NjA2Mzg4NzcwYzdmOWQ2ZTc5Y2YzYjY="
