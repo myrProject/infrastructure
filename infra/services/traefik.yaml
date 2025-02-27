@@ -134,10 +134,12 @@ spec:
     name: "web"
     targetPort: web
     protocol: TCP
+    nodePort: 31500
   - port: 443
     name: "websecure"
     targetPort: websecure
     protocol: TCP
+    nodePort: 31501
 ---
 # Source: traefik/charts/traefik/templates/deployment.yaml
 apiVersion: apps/v1
@@ -213,10 +215,10 @@ spec:
           containerPort: 8080
           protocol: "TCP"
         - name: "web"
-          containerPort: 8000
+          containerPort: 31500
           protocol: "TCP"
         - name: "websecure"
-          containerPort: 8443
+          containerPort: 31501
           protocol: "TCP"
         securityContext:
           allowPrivilegeEscalation: false
@@ -234,8 +236,8 @@ spec:
           - "--global.sendanonymoususage"
           - "--entryPoints.metrics.address=:9100/tcp"
           - "--entryPoints.traefik.address=:8080/tcp"
-          - "--entryPoints.web.address=:8000/tcp"
-          - "--entryPoints.websecure.address=:8443/tcp"
+          - "--entryPoints.web.address=:31500/tcp"
+          - "--entryPoints.websecure.address=:31501/tcp"
           - "--api.dashboard=true"
           - "--ping=true"
           - "--metrics.prometheus=true"
@@ -248,7 +250,6 @@ spec:
           - "--entryPoints.websecure.http.tls=true"
           - "--log.level=INFO"
           
-          - "--providers.kubernetesingress.ingressendpoint.publishedservice=traefik/traefik"
         env:
           - name: POD_NAME
             valueFrom:

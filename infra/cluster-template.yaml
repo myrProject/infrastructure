@@ -21,8 +21,8 @@ patches:
   #   file: patches/argocd.yaml
   # - name: monitoring
   #   file: patches/monitoring.yaml
-  - name: traefik
-    file: patches/traefik.yaml
+  # - name: traefik
+  #   file: services/traefik.yaml
 ---
 kind: Workers
 name: workers

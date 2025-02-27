@@ -1,0 +1,286 @@
+kind: ServiceAccount
+apiVersion: v1
+metadata:
+  name: kanidm
+  namespace: kanidm
+  labels:
+    app.kubernetes.io/name: kanidm
+    app.kubernetes.io/instance: kanidm-kanidm
+  annotations:
+automountServiceAccountToken: false
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: kanidm-kanidm
+  labels:
+    app.kubernetes.io/name: kanidm
+    app.kubernetes.io/instance: kanidm-kanidm
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - nodes
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - ""
+    resources:
+      - services
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - discovery.k8s.io
+    resources:
+      - endpointslices
+    verbs:
+      - list
+      - watch
+  - apiGroups:
+      - ""
+    resources:
+      - secrets
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - extensions
+      - networking.k8s.io
+    resources:
+      - ingressclasses
+      - ingresses
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - extensions
+      - networking.k8s.io
+    resources:
+      - ingresses/status
+    verbs:
+      - update
+  - apiGroups:
+      - traefik.io
+    resources:
+      - ingressroutes
+      - ingressroutetcps
+      - ingressrouteudps
+      - middlewares
+      - middlewaretcps
+      - serverstransports
+      - serverstransporttcps
+      - tlsoptions
+      - tlsstores
+      - traefikservices
+    verbs:
+      - get
+      - list
+      - watch
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: kanidm-kanidm
+  labels:
+    app.kubernetes.io/name: kanidm
+    app.kubernetes.io/instance: kanidm-kanidm
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kanidm-kanidm
+subjects:
+  - kind: ServiceAccount
+    name: kanidm
+    namespace: kanidm
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kanidm-ingress
+  namespace: kanidm
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    kubernetes.io/ingress.class: traefik
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: auth.myr-project.eu
+      http:
+        paths:
+          - pathType: Prefix
+            path: /
+            backend:
+              service:
+                name: kanidmd
+                port:
+                  name: https
+  tls:
+    - secretName: kanidm-ingressroute-certificate
+      hosts:
+        - auth.myr-project.eu
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kanidmd
+  namespace: kanidm
+  annotations:
+    traefik.ingress.kubernetes.io/service.serverstransport: "kanidm-auth.myr-project.eu@kubernetescrd"
+    traefik.ingress.kubernetes.io/service.passhostheader: "true"
+    traefik.ingress.kubernetes.io/service.serversscheme: "https"
+spec:
+  selector:
+    app: kanidmd
+  ports:
+  - name: https
+    port: 8443
+    protocol: TCP
+    targetPort: 8443
+---
+kind: PersistentVolume
+apiVersion: v1
+metadata:
+  namespace: kanidm
+  name: kanidmd-db
+spec:
+  capacity:
+    storage: 1Gi
+  storageClassName: local-path
+  accessModes:
+    - ReadWriteOnce
+  local:
+    path: /kubes/kanidmd
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - kubes
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  namespace: kanidm
+  name: kanidmd-db
+spec:
+  selector:
+    matchLabels:
+      pv: kanidmd-db
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 1Gi
+  volumeName: kanidmd-db
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: local-path
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kanidmd
+  namespace: kanidm
+  labels:
+    app: kanidmd
+spec:
+  selector:
+    matchLabels:
+      app: kanidmd
+  template:
+    metadata:
+      labels:
+        app: kanidmd
+    spec:
+      containers:
+        - name: kanidmd
+          image: kanidmd/server:latest
+          env:
+            - name: KANIDM_ADMIN_BIND_PATH
+              value: "/var/run/kanidmd.sock"
+            - name: KANIDM_BINDADDRESS
+              value: "[::]:8443"
+            - name: KANIDM_DOMAIN
+              value: "auth.myr-project.eu"
+            - name: KANIDM_ORIGIN
+              value: https://auth.myr-project.eu:31501
+            - name: KANIDM_LOG_LEVEL
+              value: DEBUG
+            - name: KANIDM_TLS_CHAIN
+              value: /certs/tls.crt
+            - name: KANIDM_TLS_KEY
+              value: /certs/tls.key
+            - name: RUST_LOG
+              value: DEBUG
+          livenessProbe:
+            httpGet:
+              path: /status
+              port: https
+              scheme: HTTPS
+            initialDelaySeconds: 30
+            periodSeconds: 5
+          ports:
+            - containerPort: 8443
+              name: https
+            - containerPort: 3636
+              name: ldaps
+          volumeMounts:
+            - name: kanidmd-db
+              mountPath: /db
+            - name: kanidmd-server-toml
+              mountPath: /data/server.toml
+              subPath: server.toml
+              readOnly: true
+            - name: kanidmd-certs
+              mountPath: /certs
+              readOnly: true
+            - name: socket-volume
+              mountPath: /var/run
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              add:
+                - NET_BIND_SERVICE
+                - CHOWN
+                - SETUID
+                - SETGID
+                - FOWNER
+                - DAC_OVERRIDE
+              drop:
+                - ALL
+          resources:
+            limits:
+              cpu: "1"
+              memory: 1536Mi
+            requests:
+              cpu: "250m"
+              memory: 256Mi
+      volumes:
+        - name: kanidmd-db
+          persistentVolumeClaim:
+            claimName: kanidmd-db
+        - name: kanidmd-certs
+          secret:
+            secretName: kanidm-ingressroute-certificate
+        - name: kanidmd-server-toml
+          configMap:
+            name: kanidmd-server-toml
+            items:
+              - key: server.toml
+                path: server.toml
+        - name: socket-volume
+          emptyDir: {}
