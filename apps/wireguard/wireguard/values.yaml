@@ -1,0 +1,11 @@
+wireguard:
+  service:
+    enabled: true
+    type: ClusterIP
+    port: 51820
+    nodePort: 51820
+  wireguard:
+    clients:
+      - PublicKey: WykRW+rBpeclQBxQmgmLV9JUfK77GNGvrC8fIdCuqGs=
+        AllowedIPs: 0.0.0.0/0
+        FriendlyName: JeanEude

@@ -1,0 +1,465 @@
+---
+# Source: wireguard/charts/wireguard/templates/pdb.yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: wireguard-pdb
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: "wireguard-wireguard"
+---
+# Source: wireguard/charts/wireguard/templates/sa.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: wireguard-sa
+automountServiceAccountToken: false
+---
+# Source: wireguard/charts/wireguard/templates/config.yaml
+kind: Secret
+apiVersion: v1
+metadata:
+  name: "wireguard-wg-config"
+data:
+  wg0.conf: W0ludGVyZmFjZV0KQWRkcmVzcyA9IDEwLjM0LjAuMS8yNApMaXN0ZW5Qb3J0ID0gNTE4MjAKUG9zdFVwID0gd2cgc2V0IHdnMCBwcml2YXRlLWtleSAvZXRjL3dpcmVndWFyZC9wcml2YXRla2V5ICYmIGlwdGFibGVzIC10IG5hdCAtQSBQT1NUUk9VVElORyAtcyAxMC4zNC4wLjAvMjQgLW8gZXRoMCAtaiBNQVNRVUVSQURFClBvc3REb3duID0gaXB0YWJsZXMgLXQgbmF0IC1EIFBPU1RST1VUSU5HIC1zIC1zIDEwLjM0LjAuMC8yNCAtbyBldGgwIC1qIE1BU1FVRVJBREUKIyBDbGllbnRzCltQZWVyXQojIGZyaWVuZGx5X25hbWUgPSBKZWFuRXVkZQpQdWJsaWNLZXkgPSBXeWtSVytyQnBlY2xRQnhRbWdtTFY5SlVmSzc3R05HdnJDOGZJZEN1cUdzPQpBbGxvd2VkSVBzID0gMC4wLjAuMC8wCiMgRW5kIENsaWVudHM=
+---
+# Source: wireguard/charts/wireguard/templates/service.yaml
+kind: Service
+apiVersion: v1
+metadata:
+  name: "wireguard-wireguard"
+  labels:
+    app: "wireguard-wireguard"
+spec:
+  type: ClusterIP
+  ports:
+    - name: wg
+      protocol: UDP
+      port: 51820
+      targetPort: 51820
+  selector:
+    app: "wireguard-wireguard"
+---
+# Source: wireguard/charts/wireguard/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: "wireguard-wireguard"
+  labels:
+    role: vpn
+
+spec:
+  selector:
+    matchLabels:
+      app: "wireguard-wireguard"
+  strategy: 
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+    type: RollingUpdate
+  template:
+    metadata:
+      annotations:
+        checksum/config: a169fe32cc66f4097660fb23793224bcba788f09176d8950eefb0f425ab94cd7
+      labels:
+        app: "wireguard-wireguard"
+        role: vpn
+    spec:      
+      serviceAccountName: wireguard-sa
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: "wireguard-wireguard"
+          matchLabelKeys:
+            - pod-template-hash
+      automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: "OnRootMismatch"
+        runAsNonRoot: true        
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                app: 'wireguard-wireguard'
+                role: vpn
+            topologyKey: kubernetes.io/hostname
+      initContainers:
+        - name: sysctls
+          image: "busybox:latest"
+          command:
+          - sh
+          - -c
+          - sysctl -w net.ipv4.ip_forward=1 && sysctl -w net.ipv4.conf.all.forwarding=1
+          securityContext: 
+            
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - NET_ADMIN
+                - NET_RAW
+                - SETUID
+                - SETGID
+            runAsNonRoot: false
+            privileged: true
+          resources:
+            requests:
+              memory: 64Mi
+              cpu: "100m"
+            limits:
+              memory: 64Mi
+              cpu: "100m"
+      containers:
+        - name: wireguard
+          image: "ghcr.io/bryopsida/wireguard:main"
+          imagePullPolicy: "Always"
+          ports:
+          - containerPort: 51820
+            protocol: UDP
+            name: wireguard
+          env:
+          - name: LOG_LEVEL
+            value: info
+          securityContext: 
+            
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - NET_ADMIN
+                - NET_RAW
+                - SETUID
+                - SETGID
+            runAsNonRoot: true
+            runAsUser: 1000
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: true
+            privileged: false
+          resources: 
+            limits:
+              cpu: 100m
+              memory: 256Mi
+            requests:
+              cpu: 100m
+              memory: 256Mi
+          startupProbe: 
+            exec:
+              command:
+              - /bin/sh
+              - -c
+              - 'ip link show dev wg0 | grep -s up'
+            periodSeconds: 2
+            failureThreshold: 15
+          readinessProbe: 
+            exec:
+              command:
+              - /bin/sh
+              - -c
+              - 'ip link show dev wg0 | grep -s up'
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe: 
+            exec:
+              command:
+              - /bin/sh
+              - -c
+              - 'ip link show dev wg0 | grep -s up'
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          volumeMounts:
+          - name: run
+            mountPath: /run
+          - name: config
+            mountPath: /etc/wireguard/wg0.conf
+            subPath: "wg0.conf"
+          - name: privatekey
+            mountPath: /etc/wireguard/privatekey
+            subPath: privatekey
+      volumes:
+      - name: run
+        emptyDir: {}
+      - name: config
+        secret:
+          secretName: "wireguard-wg-config"
+      - name: privatekey
+        secret:
+          secretName: "wireguard-wg-generated"
+---
+# Source: wireguard/charts/wireguard/templates/hpa.yaml
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: wireguard-wireguard
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: wireguard-wireguard
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 75
+---
+# Source: wireguard/charts/wireguard/templates/tests/client-connect.yaml
+# kics-scan ignore
+---
+# Source: wireguard/charts/wireguard/templates/privatekey-gen-job.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  namespace: vpn
+  name: wireguard-pre-install-job-sa
+  labels:
+    helm.sh/chart: wireguard-0.28.0
+    app.kubernetes.io/name: wireguard
+    app.kubernetes.io/instance: wireguard
+    app.kubernetes.io/version: "0.0.0"
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    "helm.sh/hook": pre-install
+    "helm.sh/hook-weight": "0"
+    "helm.sh/resource-policy": keep
+    "helm.sh/hook-delete-policy": "before-hook-creation,hook-succeeded"
+---
+# Source: wireguard/charts/wireguard/templates/privatekey-gen-job.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: wireguard-wg-gen-scripts
+  namespace: vpn
+  labels:
+    helm.sh/chart: wireguard-0.28.0
+    app.kubernetes.io/name: wireguard
+    app.kubernetes.io/instance: wireguard
+    app.kubernetes.io/version: "0.0.0"
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    "helm.sh/hook": pre-install
+    "helm.sh/hook-weight": "1"
+    "helm.sh/resource-policy": delete
+    "helm.sh/hook-delete-policy": "before-hook-creation,hook-succeeded"
+data:
+  gen-key.sh: |
+    #!/usr/bin/env sh
+    kubectl --namespace $RELEASE_NAMESPACE create secret generic $SECRET_NAME --from-literal=privatekey=$(wg genkey)
+---
+# Source: wireguard/charts/wireguard/templates/privatekey-gen-job.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: vpn
+  name: wireguard-secret-creator
+  labels:
+    helm.sh/chart: wireguard-0.28.0
+    app.kubernetes.io/name: wireguard
+    app.kubernetes.io/instance: wireguard
+    app.kubernetes.io/version: "0.0.0"
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    "helm.sh/hook": pre-install
+    "helm.sh/hook-weight": "0"
+    "helm.sh/resource-policy": delete
+    "helm.sh/hook-delete-policy": "before-hook-creation,hook-succeeded"
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["create"]
+---
+# Source: wireguard/charts/wireguard/templates/privatekey-gen-job.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: wireguard-hook-create-secret
+  namespace: vpn
+  labels:
+    helm.sh/chart: wireguard-0.28.0
+    app.kubernetes.io/name: wireguard
+    app.kubernetes.io/instance: wireguard
+    app.kubernetes.io/version: "0.0.0"
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    "helm.sh/hook": pre-install
+    "helm.sh/hook-weight": "1"
+    "helm.sh/resource-policy": delete
+    "helm.sh/hook-delete-policy": "before-hook-creation,hook-succeeded"
+subjects:
+- kind: ServiceAccount
+  name:  wireguard-pre-install-job-sa
+  namespace: vpn
+roleRef:
+  kind: Role 
+  name: wireguard-secret-creator
+  apiGroup: rbac.authorization.k8s.io
+---
+# Source: wireguard/charts/wireguard/templates/privatekey-gen-job.yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: "wireguard-wg-gen"
+  namespace: "vpn"
+  labels:
+    helm.sh/chart: wireguard-0.28.0
+    app.kubernetes.io/name: wireguard
+    app.kubernetes.io/instance: wireguard
+    app.kubernetes.io/version: "0.0.0"
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    "helm.sh/hook": pre-install
+    "helm.sh/hook-weight": "2"
+    "helm.sh/resource-policy": delete
+    "helm.sh/hook-delete-policy": "before-hook-creation,hook-succeeded"
+spec:
+  ttlSecondsAfterFinished: 60
+  template:
+    spec:      
+      serviceAccountName: wireguard-pre-install-job-sa
+      restartPolicy: Never
+      securityContext: 
+        fsGroup: 1000
+        fsGroupChangePolicy: Always
+        seccompProfile:
+          type: RuntimeDefault
+      volumes:
+        - name: script
+          configMap:
+            name: wireguard-wg-gen-scripts
+            items:
+              - key: gen-key.sh
+                path: entry-point.sh
+                mode: 0755
+      containers:
+      - name: keygen-job
+        volumeMounts:
+          - name: script
+            mountPath: /job/
+        image: "ghcr.io/curium-rocks/wg-kubectl:latest"
+        imagePullPolicy: "Always"
+        securityContext: 
+          allowPrivilegeEscalation: false
+          privileged: false
+          readOnlyRootFilesystem: true
+          runAsGroup: 1000
+          runAsNonRoot: true
+          runAsUser: 1000
+        resources:
+          requests:
+            memory: 64Mi
+            cpu: "100m"
+          limits:
+            memory: 64Mi
+            cpu: "100m"
+        env:
+          - name: SECRET_NAME
+            value: "wireguard-wg-generated"
+          - name: RELEASE_NAMESPACE
+            value: "vpn"
+          - name: RELEASE_NAME
+            value: "wireguard"
+        command: 
+          - /job/entry-point.sh
+---
+# Source: wireguard/charts/wireguard/templates/tests/client-connect.yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: wireguard-client-test
+  namespace: vpn
+  annotations:
+    helm.sh/hook: test
+spec:
+  template:
+    spec:
+      automountServiceAccountToken: false
+      initContainers:
+        - name: sysctls
+          image: busybox:stable
+          command:
+          - sh
+          - -c
+          - sysctl -w net.ipv4.ip_forward=1 && sysctl -w net.ipv4.conf.all.forwarding=1
+          securityContext:
+            runAsNonRoot: false
+            privileged: true
+          resources:
+            requests:
+              memory: 64Mi
+              cpu: "100m"
+            limits:
+              memory: 64Mi
+              cpu: "100m"
+      containers:
+        - name: wireguard-client
+          image: ghcr.io/bryopsida/wireguard:main
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: true
+            privileged: false
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - NET_ADMIN
+                - NET_RAW
+                - SETUID
+                - SETGID
+          env:
+            - name: WG_PRIVATE_KEY
+              value: "gILClOGWPR+w9q4f0A7hlTKdQHC0vHwXPrGLHPKJi2o="
+            - name: WG_SERVER
+              value: "wireguard-wireguard.vpn.svc"
+            - name: WG_SERVER_PORT
+              value: "51820"
+            - name: WG_SERVER_CIDR
+              value: "10.34.0.0/24"
+            - name: WG_CLIENT_IP
+              value: "172.32.32.2/32"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          command: 
+            - /bin/sh
+          args:
+            - -c
+            - |
+                set -e
+                
+                cat <<EOF > /tmp/wg0.conf
+                [Interface]
+                PrivateKey = ${WG_PRIVATE_KEY}
+                Address = ${WG_CLIENT_IP}
+
+                [Peer]
+                PublicKey = $(cat /etc/wireguard-server/privatekey | wg pubkey)
+                Endpoint = ${WG_SERVER}:${WG_SERVER_PORT}
+                AllowedIPs = ${WG_SERVER_CIDR}
+                EOF
+
+                wg-quick up /tmp/wg0.conf
+                sleep 5
+                sudo ping -c 1 -W 1 172.32.32.1
+          volumeMounts:
+            - name: wireguard-server-secret
+              mountPath: /etc/wireguard-server/
+              readOnly: true
+            - name: tmp-volume
+              mountPath: /tmp
+      volumes:
+        - name: wireguard-server-secret
+          secret:
+            secretName: wireguard-wg-generated
+        - name: tmp-volume
+          emptyDir: {}
+      restartPolicy: Never
+  backoffLimit: 4
