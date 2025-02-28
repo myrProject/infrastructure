@@ -75,5 +75,9 @@ kanidm-apply:
 kanidm-delete:
     kubectl delete -f infra/services/kanidm.yaml
 
+
+vpn-build:
+    helm template wireguard apps/wireguard/wireguard --namespace vpn > infra/services/wg.yaml
+
 cluster:
     omnictl cluster template sync --file infra/cluster-template.yaml
