@@ -36,7 +36,7 @@ cert-manager-delete :
     kubectl delete -f apps/cert-manager/others/issuer-secret.yaml
 
 cnpg-build :
-    helm template cnpg apps/cnpg/database --namespace database >> infra/services/cnpg.yaml
+    helm template cnpg apps/cnpg/database --namespace database > infra/services/cnpg.yaml
     helm template cnpg apps/cnpg/cnpg --namespace cnpg-system >> infra/services/cnpg.yaml
 
 cnpg-create : cnpg-build
@@ -49,7 +49,6 @@ cnpg-apply : cnpg-build
 cnpg-delete :
     kubectl delete -f apps/cnpg/namespace/namespace.yaml
     kubectl delete -f infra/services/cnpg.yaml
-    kubectl create -f infra/services/route.yaml
 
 cluster:
     omnictl cluster template sync --file infra/cluster-template.yaml

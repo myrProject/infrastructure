@@ -1,4 +1,7 @@
 database:
+  cluster:
+    services:
+      disabledDefaultServices: ["r"]
   recovery:
     ##
     # -- Available recovery methods:
