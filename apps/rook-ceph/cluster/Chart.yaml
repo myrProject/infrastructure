@@ -1,6 +1,6 @@
 apiVersion: v2
 name: rook-ceph-cluster
-version: v1.13.2
+version: v0.0.1
 dependencies:
   - name: rook-ceph-cluster
     version: v1.13.2
