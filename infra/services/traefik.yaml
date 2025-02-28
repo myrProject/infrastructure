@@ -214,6 +214,9 @@ spec:
         - name: "traefik"
           containerPort: 8080
           protocol: "TCP"
+        - name: "udp"
+          containerPort: 51820
+          protocol: "UDP"
         - name: "web"
           containerPort: 31500
           protocol: "TCP"
@@ -236,6 +239,7 @@ spec:
           - "--global.sendanonymoususage"
           - "--entryPoints.metrics.address=:9100/tcp"
           - "--entryPoints.traefik.address=:8080/tcp"
+          - "--entryPoints.udp.address=:51820/udp"
           - "--entryPoints.web.address=:31500/tcp"
           - "--entryPoints.websecure.address=:31501/tcp"
           - "--api.dashboard=true"

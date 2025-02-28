@@ -25,3 +25,7 @@ traefik:
       port: 31501       # HTTPS port
       default : true
       nodePort: 31501
+    udp:
+      port: 51820
+      protocol: UDP
+      default: true
