@@ -1,3 +1,6 @@
 cnpg:
   config:
     clusterWide: true
+
+  service:
+    port: 6700

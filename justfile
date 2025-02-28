@@ -49,6 +49,7 @@ cnpg-apply : cnpg-build
 cnpg-delete :
     kubectl delete -f apps/cnpg/namespace/namespace.yaml
     kubectl delete -f infra/services/cnpg.yaml
+    kubectl create -f infra/services/route.yaml
 
 cluster:
     omnictl cluster template sync --file infra/cluster-template.yaml
