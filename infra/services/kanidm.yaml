@@ -265,7 +265,7 @@ spec:
   persistentVolumeReclaimPolicy: Retain
   storageClassName: manual
   hostPath:
-    path: "/test/kanidm"
+    path: "/var/lib/kanidm"
     type: DirectoryOrCreate
 ---
 apiVersion: v1
@@ -335,7 +335,7 @@ spec:
               name: ldaps
           volumeMounts:
             - name: kanidmd-db
-              mountPath: /db
+              mountPath: /data
               readOnly: false
             - name: kanidmd-server-toml
               mountPath: /data/server.toml
