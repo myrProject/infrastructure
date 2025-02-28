@@ -64,5 +64,16 @@ vw-delete :
     kubectl delete -f apps/vaultwarden/namespace/namespace.yaml
     kubectl delete -f infra/services/vaultwarden.yaml
 
+kanidm-create:
+    kubectl create -f apps/kanidm/namespace/namespace.yaml
+    kubectl create -f apps/kanidm/others/certificate.yaml
+    kubectl create -f infra/services/kanidm.yaml
+
+kanidm-apply:
+    kubectl apply -f infra/services/kanidm.yaml
+
+kanidm-delete:
+    kubectl delete -f infra/services/kanidm.yaml
+
 cluster:
     omnictl cluster template sync --file infra/cluster-template.yaml
