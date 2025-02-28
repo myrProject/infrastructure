@@ -1,7 +1,7 @@
 apiVersion: v1
 data:
-  username: test
-  password: test
+  username: YXBw  # base64 encoded "app"
+  password: cGFzc3dvcmQ=  # base64 encoded "password"
 kind: Secret
 metadata:
   name: app-db-password
@@ -28,4 +28,4 @@ spec:
         passwordSecret:
           name: app-db-password
     services:
-      disabledDefaultServices: ["ro", "r"]
+      disabledDefaultServices: ["r"]
