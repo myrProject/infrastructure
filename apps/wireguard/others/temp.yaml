@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oauth2-proxy
+  namespace: vpn
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: oauth2-proxy
+  template:
+    metadata:
+      labels:
+        app: oauth2-proxy
+    spec:
+      containers:
+        - name: oauth2-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy:latest
+          args:
+            - --provider=oidc
+            - --oidc-issuer-url=https://auth.myr-project.eu
+            - --client-id=vpn
+            - --client-secret=A8RBh5DFUAswNt5jT7fp2Hh6ktqQ9jMjzWgX5GdV4RSdcz4a
+            - --cookie-secret=czRpS2s5d2ozeWxkQXdCU25OV3J2dz09
+            - --email-domain=*
+            - --upstream=http://wireguard:51820
+            - --redirect-url=https://vpn.myr-project.eu/oauth2/callback
+            - --scope=openid profile email
+          ports:
+            - containerPort: 4180
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oauth2-proxy
+  namespace: vpn
+spec:
+  ports:
+    - port: 4180
+      targetPort: 4180
+  selector:
+    app: oauth2-proxy
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: oauth2-auth
+  namespace: vpn
+spec:
+  forwardAuth:
+    address: http://oauth2-proxy:4180
+    trustForwardHeader: true
+    authResponseHeaders:
+      - Authorization
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRouteUDP
+metadata:
+  name: wireguard
+  namespace: vpn
+spec:
+  entryPoints:
+    - udp
+  routes:
+    - services:
+        - name: wireguard
+          port: 51820
+      middlewares:
+        - name: oauth2-auth
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: oauth2-proxy
+  namespace: vpn
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`vpn.myr-project.eu`)
+      kind: Rule
+      services:
+        - name: oauth2-proxy
+          port: 4180
