@@ -7,7 +7,7 @@ type: Opaque
 stringData:
   wg0.conf.template: |
     [Interface]
-    Address = 172.16.16.0/20
+    Address = 172.16.16.1/20
     ListenPort = 51820
     PrivateKey = 4Fp/vx4xjTAIcykuU8TWUslECk4ponmS7z0Zmn+79GI=
     PostUp = iptables -A FORWARD -i wg0 -j ACCEPT; iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
@@ -17,7 +17,8 @@ stringData:
 
     [Peer]
     PublicKey = WykRW+rBpeclQBxQmgmLV9JUfK77GNGvrC8fIdCuqGs=
-    AllowedIPs = 0.0.0.0/0
+    AllowedIPs = 127.16.16.2/32
+    PersistentKeepalive = 25
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -41,11 +42,11 @@ spec:
         - sh
         - "-c"
         - |
-          ENI=$(ip route get 8.8.8.8 | grep 8.8.8.8 | awk '{print $5}')
-          sed "s/ENI/$ENI/g" /etc/wireguard-secret/wg0.conf.template > /config/wg0.conf
-          chmod 400 /config/wg0.conf
+          ENI=$(ip route get 1.1.1.1 | grep 1.1.1.1 | awk '{print $5}')
+          sed "s/ENI/$ENI/g" /etc/wireguard-secret/wg0.conf.template > /config/wg_confs/wg0.conf
+          chmod 400 /config/wg_confs/wg0.conf
         volumeMounts:
-        - mountPath: "/config/"
+        - mountPath: "/config/wg_confs/"
           name: wireguard-config
         - mountPath: "/etc/wireguard-secret/"
           name: wireguard-secret
@@ -62,7 +63,7 @@ spec:
         - containerPort: 51820
         env:
         - name: PEERS
-          value: user1,user2
+          value: ""
         - name: PUID
           value: '1000'
         - name: PGID
@@ -74,7 +75,7 @@ spec:
         - name: SERVERURL
           value: vpn.myr-project.eu
         volumeMounts:
-        - mountPath: "/config/"
+        - mountPath: "/config/wg_confs/"
           name: wireguard-config
       volumes:
       - name: wireguard-config
