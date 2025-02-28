@@ -35511,7 +35511,7 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-  - port: 443
+  - port: 6700
     targetPort: webhook-server
     name: webhook-server
   selector:
@@ -35795,7 +35795,7 @@ webhooks:
       name: cnpg-webhook-service
       namespace: cnpg-system
       path: /mutate-postgresql-cnpg-io-v1-backup
-      port: 443
+      port: 6700
   failurePolicy: Fail
   name: mbackup.cnpg.io
   rules:
@@ -35816,7 +35816,7 @@ webhooks:
       name: cnpg-webhook-service
       namespace: cnpg-system
       path: /mutate-postgresql-cnpg-io-v1-cluster
-      port: 443
+      port: 6700
   failurePolicy: Fail
   name: mcluster.cnpg.io
   rules:
@@ -35837,7 +35837,7 @@ webhooks:
       name: cnpg-webhook-service
       namespace: cnpg-system
       path: /mutate-postgresql-cnpg-io-v1-scheduledbackup
-      port: 443
+      port: 6700
   failurePolicy: Fail
   name: mscheduledbackup.cnpg.io
   rules:
@@ -35871,7 +35871,7 @@ webhooks:
       name: cnpg-webhook-service
       namespace: cnpg-system
       path: /validate-postgresql-cnpg-io-v1-backup
-      port: 443
+      port: 6700
   failurePolicy: Fail
   name: vbackup.cnpg.io
   rules:
@@ -35892,7 +35892,7 @@ webhooks:
       name: cnpg-webhook-service
       namespace: cnpg-system
       path: /validate-postgresql-cnpg-io-v1-cluster
-      port: 443
+      port: 6700
   failurePolicy: Fail
   name: vcluster.cnpg.io
   rules:
@@ -35913,7 +35913,7 @@ webhooks:
       name: cnpg-webhook-service
       namespace: cnpg-system
       path: /validate-postgresql-cnpg-io-v1-scheduledbackup
-      port: 443
+      port: 6700
   failurePolicy: Fail
   name: vscheduledbackup.cnpg.io
   rules:
@@ -35934,7 +35934,7 @@ webhooks:
       name: cnpg-webhook-service
       namespace: cnpg-system
       path: /validate-postgresql-cnpg-io-v1-pooler
-      port: 443
+      port: 6700
   failurePolicy: Fail
   name: vpooler.cnpg.io
   rules:
