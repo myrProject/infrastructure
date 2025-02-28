@@ -71,7 +71,7 @@ spec:
   routes:
     - match: HostSNI(`pg-read.myr-project.eu`)
       services:
-        - name: cluster-r
+        - name: cluster-ro
           port: 5432
   tls:
-    secretName: pg-ingressroute-certificate
+    secretName: pg-read-ingressroute-certificate
