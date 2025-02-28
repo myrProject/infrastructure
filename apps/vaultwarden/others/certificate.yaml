@@ -1,0 +1,22 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: traefik-ingressroute-certificate
+  namespace: cert-manager
+spec:
+  # Secret names are always required.
+  secretName: traefik-ingressroute-certificate
+
+  issuerRef:
+    name: digitalocean-clusterissuer
+    kind: ClusterIssuer
+
+  dnsNames:
+    - traefik.myr-project.eu
+
+  secretTemplate:
+    annotations:
+      reflector.v1.k8s.emberstack.com/reflection-allowed: "true"
+      reflector.v1.k8s.emberstack.com/reflection-allowed-namespaces: "traefik"
+      reflector.v1.k8s.emberstack.com/reflection-auto-enabled: "true"
+      reflector.v1.k8s.emberstack.com/reflection-auto-namespaces: "traefik"
