@@ -36,7 +36,7 @@ cert-manager-delete :
     kubectl delete -f apps/cert-manager/others/issuer-secret.yaml
 
 cnpg-build :
-    helm template cnpg apps/cnpg/database --namespace database > infra/services/cnpg.yaml
+    helm template cnpg apps/cnpg/cluster --namespace database > infra/services/cnpg.yaml
     helm template cnpg apps/cnpg/cnpg --namespace cnpg-system >> infra/services/cnpg.yaml
 
 cnpg-create : cnpg-build
@@ -44,11 +44,25 @@ cnpg-create : cnpg-build
     kubectl create -f infra/services/cnpg.yaml
 
 cnpg-apply : cnpg-build
-    kubectl apply -f infra/services/cnpg.yaml --server-side
+    kubectl apply -f infra/services/cnpg.yaml --server-side --force-conflicts
 
 cnpg-delete :
     kubectl delete -f apps/cnpg/namespace/namespace.yaml
     kubectl delete -f infra/services/cnpg.yaml
+
+vw-build :
+    helm template cnpg apps/vaultwarden/vaultwarden --namespace vaultwarden > infra/services/vaultwarden.yaml
+
+vw-create :
+    kubectl create -f apps/vaultwarden/namespace/namespace.yaml
+    kubectl create -f infra/services/vaultwarden.yaml
+
+vw-apply :
+    kubectl apply -f infra/services/vaultwarden.yaml
+
+vw-delete :
+    kubectl delete -f apps/vaultwarden/namespace/namespace.yaml
+    kubectl delete -f infra/services/vaultwarden.yaml
 
 cluster:
     omnictl cluster template sync --file infra/cluster-template.yaml

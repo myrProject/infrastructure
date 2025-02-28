@@ -1,4 +1,4 @@
-cnpg:
+cloudnative-pg:
   config:
     clusterWide: true
 
