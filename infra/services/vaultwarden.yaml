@@ -273,7 +273,7 @@ spec:
     kind: ClusterIssuer
 
   dnsNames:
-    - pg.myr-project.eu
+    - vault.myr-project.eu
 
   secretTemplate:
     annotations:
