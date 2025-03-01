@@ -1,7 +1,7 @@
 vaultwarden:
   database:
     type: postgresql
-    uriOverride: "postgresql://test:test@cluster-rw.database.svc.cluster.local:5432/vwdb"
+    uriOverride: "postgresql://app:password@cluster-rw.database.svc.cluster.local:5432/vwdb"
   ingress:
     enabled: true
     hostname: "pass.myr-project.eu"

@@ -1,5 +1,5 @@
 ---
-# Source: traefik/charts/vaultwarden/templates/rbac.yaml
+# Source: vaultwarden/charts/vaultwarden/templates/rbac.yaml
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -13,7 +13,7 @@ metadata:
     app.kubernetes.io/version: "1.33.2"
     app.kubernetes.io/managed-by: Helm
 ---
-# Source: traefik/charts/vaultwarden/templates/secrets.yaml
+# Source: vaultwarden/charts/vaultwarden/templates/secrets.yaml
 apiVersion: v1
 kind: Secret
 metadata:
@@ -36,7 +36,7 @@ data:
   PUSH_INSTALLATION_KEY: ""
   ADMIN_TOKEN: "JGFyZ29uMmlkJHY9MTkkbT0xOTQ1Nix0PTIscD0xJFZreDFWa0U0Um1oRE1VaHdObTlZVmxoUFFrVk9aazFZYzFkdVNEZEdSVll6ZDBZNVprZ3dhVmcwWXowJFBLK2gxQU5DYnp6bUVLYWlRZkNqV3craFdGYU1LdkxoRzJQalJhbkg1S2s="
 ---
-# Source: traefik/charts/vaultwarden/templates/configmap.yaml
+# Source: vaultwarden/charts/vaultwarden/templates/configmap.yaml
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -81,7 +81,7 @@ data:
   ADMIN_RATELIMIT_SECONDS: "300"
   ADMIN_RATELIMIT_MAX_BURST: "3"
 ---
-# Source: traefik/charts/vaultwarden/templates/rbac.yaml
+# Source: vaultwarden/charts/vaultwarden/templates/rbac.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -111,7 +111,7 @@ rules:
     resources: ["secrets"]
     verbs: ["get"]
 ---
-# Source: traefik/charts/vaultwarden/templates/rbac.yaml
+# Source: vaultwarden/charts/vaultwarden/templates/rbac.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
@@ -132,7 +132,7 @@ subjects:
   - kind: ServiceAccount
     name: vaultwarden-svc
 ---
-# Source: traefik/charts/vaultwarden/templates/service.yaml
+# Source: vaultwarden/charts/vaultwarden/templates/service.yaml
 apiVersion: v1
 kind: Service
 metadata:
@@ -158,7 +158,7 @@ spec:
       targetPort: 8080
   ipFamilyPolicy: SingleStack
 ---
-# Source: traefik/charts/vaultwarden/templates/statefulset.yaml
+# Source: vaultwarden/charts/vaultwarden/templates/statefulset.yaml
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -203,7 +203,7 @@ spec:
                   name: cnpg-vaultwarden
                   key: ADMIN_TOKEN
             - name: DATABASE_URL
-              value: postgresql://test:test@cluster-rw.database.svc.cluster.local:5432/vwdb
+              value: postgresql://app:password@cluster-rw.database.svc.cluster.local:5432/vwdb
           ports:
             - containerPort: 8080
               name: http
@@ -232,9 +232,9 @@ spec:
     whenDeleted: Retain
     whenScaled: Retain
 ---
-# Source: traefik/charts/vaultwarden/templates/ingress.yaml
-apiVersion: networking.k8s.io/v1
-kind: Ingress
+# Source: vaultwarden/charts/vaultwarden/templates/ingress.yaml
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
 metadata:
   name: cnpg-vaultwarden
   namespace: vaultwarden
@@ -245,33 +245,16 @@ metadata:
     app.kubernetes.io/instance: cnpg
     app.kubernetes.io/version: "1.33.2"
     app.kubernetes.io/managed-by: Helm
-  annotations:
-    ingress.kubernetes.io/rewrite-target: /
-    ingress.kubernetes.io/ssl-redirect: "true"
-    nginx.ingress.kubernetes.io/connection-proxy-header: "keep-alive"
-    nginx.ingress.kubernetes.io/enable-cors: "true"
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
-    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
-    nginx.ingress.kubernetes.io/limit-connections: "25"
-    nginx.ingress.kubernetes.io/limit-rps: "15"
-    nginx.ingress.kubernetes.io/proxy-body-size: 1024m
-    nginx.ingress.kubernetes.io/proxy-connect-timeout: "10"
-    nginx.ingress.kubernetes.io/proxy-send-timeout: "1800"
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "1800"
 spec:
-  ingressClassName: "nginx"
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`pass.myr-project.eu`)
+      kind: Rule
+      services:
+        - name: cnpg-vaultwarden
+          port: 80
+      middlewares:
+        - name: redirect-https
   tls:
-    - hosts:
-        - "pass.myr-project.eu"
-      secretName:
-  rules:
-    - host: "pass.myr-project.eu"
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: cnpg-vaultwarden
-                port:
-                  name: "http"
+    secretName: <your-tls-secret-name>

@@ -2,6 +2,7 @@ apiVersion: postgresql.cnpg.io/v1
 kind: Database
 metadata:
   name: vault-warden-db
+  namespace: database
 spec:
   name: vwdb
   owner: app
