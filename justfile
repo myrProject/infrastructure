@@ -16,7 +16,7 @@ traefik-delete:
     kubectl delete -f infra/services/traefik.yaml
 
 cert-manager-build :
-    helm template cert-manager apps/cert-manager/cert-manager --namespace cert-manager > infra/services/cert-manager.yaml
+    helm template cert-manager apps/monitoring/cert-manager --namespace cert-manager > infra/services/cert-manager.yaml
 
 cert-manager-create : cert-manager-build
     kubectl create -f apps/cert-manager/namespace/namespace.yaml
@@ -81,3 +81,19 @@ vpn-build:
 
 cluster:
     omnictl cluster template sync --file infra/cluster-template.yaml
+
+kpg-build :
+    helm template cnpg apps/vaultwarden/vaultwarden --namespace vaultwarden > infra/services/vaultwarden.yaml
+
+
+mail-build:
+    helm template stalwart-mail apps/stalwart-mail-helm/stalwart-mail --namespace mail --debug > infra/services/stalwart-mail.yaml
+
+mail-create: mail-build
+    kubectl create -f infra/services/stalwart-mail.yaml
+
+mail-apply: mail-build
+    kubectl apply -f infra/services/stalwart-mail.yaml
+
+mail-delete:
+    kubectl delete -f infra/services/stalwart-mail.yaml
