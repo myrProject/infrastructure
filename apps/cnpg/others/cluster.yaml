@@ -10,6 +10,7 @@ metadata:
     cnpg.io/reload: "true"
 type: kubernetes.io/basic-auth
 ---
+# https://github.com/cloudnative-pg/charts/blob/main/charts/cluster/values.yaml
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
 metadata:
