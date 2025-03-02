@@ -1,0 +1,127 @@
+---
+# Source: stalwart-mail/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: admin
+  namespace: mail
+  labels:
+    helm.sh/chart: stalwart-mail-0.1.0
+    app.kubernetes.io/name: stalwart-mail
+    app.kubernetes.io/instance: stalwart-mail
+    app.kubernetes.io/version: "v0.11.6"
+    app.kubernetes.io/managed-by: Helm
+---
+# Source: stalwart-mail/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: stalwart-mail
+  namespace: mail
+  labels:
+    helm.sh/chart: stalwart-mail-0.1.0
+    app.kubernetes.io/name: stalwart-mail
+    app.kubernetes.io/instance: stalwart-mail
+    app.kubernetes.io/version: "v0.11.6"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+  - name: https
+    port: 443
+    targetPort: 443
+  - name: smtp
+    port: 25
+    targetPort: 25
+  - name: submission
+    port: 587
+    targetPort: 587
+  - name: smtps
+    port: 465
+    targetPort: 465
+  - name: imap
+    port: 143
+    targetPort: 143
+  - name: imaps
+    port: 993
+    targetPort: 993
+  - name: sieve
+    port: 4190
+    targetPort: 4190
+  selector:
+    app.kubernetes.io/name: stalwart-mail
+    app.kubernetes.io/instance: stalwart-mail
+---
+# Source: stalwart-mail/templates/statefulset.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: stalwart-mail
+  namespace: mail
+  labels:
+    helm.sh/chart: stalwart-mail-0.1.0
+    app.kubernetes.io/name: stalwart-mail
+    app.kubernetes.io/instance: stalwart-mail
+    app.kubernetes.io/version: "v0.11.6"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  serviceName: stalwart-mail-headless
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: stalwart-mail
+      app.kubernetes.io/instance: stalwart-mail
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: stalwart-mail
+        app.kubernetes.io/instance: stalwart-mail
+    spec:
+      serviceAccountName: admin
+      securityContext:
+        null
+      containers:
+      - name: stalwart-mail
+        image: "stalwartlabs/mail-server:latest"
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          httpGet:
+            path: /healthz/live
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /healthz/ready
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        ports:
+          - name: http
+            containerPort: 8080
+          - name: https
+            containerPort: 443
+          - name: smtp
+            containerPort: 25
+          - name: submission
+            containerPort: 587
+          - name: smtps
+            containerPort: 465
+          - name: imap
+            containerPort: 143
+          - name: imaps
+            containerPort: 993
+          - name: sieve
+            containerPort: 4190
+        volumeMounts:
+        - name: stalwart-volume
+          mountPath: /opt/stalwart-mail
+        resources:
+          null
+      volumes:
+        - name: stalwart-volume
+          persistentVolumeClaim:
+            claimName: stalwart-pvc
