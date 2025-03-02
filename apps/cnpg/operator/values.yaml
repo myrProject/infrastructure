@@ -1,6 +1,0 @@
-cloudnative-pg:
-  config:
-    clusterWide: true
-
-  service:
-    port: 6700
