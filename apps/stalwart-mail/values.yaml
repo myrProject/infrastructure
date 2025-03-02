@@ -1,0 +1,25 @@
+image:
+  repository: stalwartlabs/mail-server
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+service:
+  type: NodePort
+  ports:
+    http: 8080
+    https: 443
+    smtp: 25
+    submission: 587
+    smtps: 465
+    imap: 143
+    imaps: 993
+    sieve: 4190
+
+persistence:
+  enabled: true
+  storageClass: "local-path"
+  accessMode: ReadWriteOnce
+  size: 10Gi
+  mountPath: /opt/stalwart-mail
+
+replicaCount: 1
