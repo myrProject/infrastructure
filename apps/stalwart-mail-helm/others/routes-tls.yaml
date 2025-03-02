@@ -1,0 +1,206 @@
+---
+# Certificates
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: smtp-cert
+  namespace: mail
+spec:
+  secretName: smtp-tls-cert
+  dnsNames:
+    - smtp.myr-project.eu
+  issuerRef:
+    name: digitalocean-clusterissuer
+    kind: ClusterIssuer
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: submission-cert
+  namespace: mail
+spec:
+  secretName: submission-tls-cert
+  dnsNames:
+    - submission.myr-project.eu
+  issuerRef:
+    name: digitalocean-clusterissuer
+    kind: ClusterIssuer
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: smtps-cert
+  namespace: mail
+spec:
+  secretName: smtps-tls-cert
+  dnsNames:
+    - smtps.myr-project.eu
+  issuerRef:
+    name: digitalocean-clusterissuer
+    kind: ClusterIssuer
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: imap-cert
+  namespace: mail
+spec:
+  secretName: imap-tls-cert
+  dnsNames:
+    - imap.myr-project.eu
+  issuerRef:
+    name: digitalocean-clusterissuer
+    kind: ClusterIssuer
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: imaps-cert
+  namespace: mail
+spec:
+  secretName: imaps-tls-cert
+  dnsNames:
+    - imaps.myr-project.eu
+  issuerRef:
+    name: digitalocean-clusterissuer
+    kind: ClusterIssuer
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: sieve-cert
+  namespace: mail
+spec:
+  secretName: sieve-tls-cert
+  dnsNames:
+    - sieve.myr-project.eu
+  issuerRef:
+    name: digitalocean-clusterissuer
+    kind: ClusterIssuer
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: web-cert
+  namespace: mail
+spec:
+  secretName: web-tls-cert
+  dnsNames:
+    - mail.myr-project.eu
+  issuerRef:
+    name: digitalocean-clusterissuer
+    kind: ClusterIssuer
+---
+# Routes
+apiVersion: traefik.io/v1alpha1
+kind: IngressRouteTCP
+metadata:
+  name: smtp-ingress-route
+  namespace: mail
+spec:
+  entryPoints:
+    - smtp
+  routes:
+    - match: HostSNI(`smtp.myr-project.eu`)
+      services:
+        - name: stalwart-mail
+          port: 25
+  tls:
+    secretName: smtp-tls-cert
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRouteTCP
+metadata:
+  name: submission-ingress-route
+  namespace: mail
+spec:
+  entryPoints:
+    - submission
+  routes:
+    - match: HostSNI(`submission.myr-project.eu`)
+      services:
+        - name: stalwart-mail
+          port: 587
+  tls:
+    secretName: submission-tls-cert
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRouteTCP
+metadata:
+  name: smtps-ingress-route
+  namespace: mail
+spec:
+  entryPoints:
+    - smtps
+  routes:
+    - match: HostSNI(`smtps.myr-project.eu`)
+      services:
+        - name: stalwart-mail
+          port: 465
+  tls:
+    secretName: smtps-tls-cert
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRouteTCP
+metadata:
+  name: imap-ingress-route
+  namespace: mail
+spec:
+  entryPoints:
+    - imap
+  routes:
+    - match: HostSNI(`imap.myr-project.eu`)
+      services:
+        - name: stalwart-mail
+          port: 143
+  tls:
+    secretName: imap-tls-cert
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRouteTCP
+metadata:
+  name: imaps-ingress-route
+  namespace: mail
+spec:
+  entryPoints:
+    - imaps
+  routes:
+    - match: HostSNI(`imaps.myr-project.eu`)
+      services:
+        - name: stalwart-mail
+          port: 993
+  tls:
+    secretName: imaps-tls-cert
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRouteTCP
+metadata:
+  name: sieve-ingress-route
+  namespace: mail
+spec:
+  entryPoints:
+    - sieve
+  routes:
+    - match: HostSNI(`sieve.myr-project.eu`)
+      services:
+        - name: stalwart-mail
+          port: 4190
+  tls:
+    secretName: sieve-tls-cert
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: http-ingress-route
+  namespace: mail
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`mail.myr-project.eu`)
+      kind: Rule
+      services:
+        - name: stalwart-mail
+          port: 8080
+  tls:
+    secretName: web-tls-cert

@@ -1,0 +1,13 @@
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: stalwart-pvc
+  namespace: mail # Replace with your namespace
+spec:
+  storageClassName: "local-path" # Must match the PV's storage class
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi # Must match the PV's capacity
