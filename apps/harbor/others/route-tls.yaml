@@ -23,17 +23,29 @@ spec:
   entryPoints:
     - websecure
   routes:
-    - match: Host(`harbor.myr-project.eu`)
-      services:
-        - name: harbor
-          port: 80
-    - match: Host(`core.harbor.myr-project.eu`)
+    - match: Host(`harbor.myr-project.eu`) && PathPrefix(`/api/`)
       services:
         - name: harbor-core
           port: 80
-    - match: Host(`portal.harbor.myr-project.eu`)
+    - match: Host(`harbor.myr-project.eu`) && PathPrefix(`/service/`)
+      services:
+        - name: harbor-core
+          port: 80
+    - match: Host(`harbor.myr-project.eu`) && PathPrefix(`/v2`)
+      services:
+        - name: harbor-core
+          port: 80
+    - match: Host(`harbor.myr-project.eu`) && PathPrefix(`/chartrepo/`)
+      services:
+        - name: harbor-core
+          port: 80
+    - match: Host(`harbor.myr-project.eu`) && PathPrefix(`/c/`)
+      services:
+        - name: harbor-core
+          port: 80
+    - match: Host(`harbor.myr-project.eu`)
       services:
         - name: harbor-portal
           port: 80
   tls:
-    secretName: harbor-nginx
+    secretName: harbor-ngin
