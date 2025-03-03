@@ -1,0 +1,10 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: harbor-core-db
+  namespace: database
+spec:
+  name: harbor-core-db
+  owner: app
+  cluster:
+    name: cluster

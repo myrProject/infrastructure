@@ -87,7 +87,7 @@ kpg-build :
 
 
 mail-build:
-    helm template stalwart-mail apps/stalwart-mail-helm/stalwart-mail --namespace mail --debug > infra/services/stalwart-mail.yaml
+    helm template stalwart-mail apps/stalwart-mail-helm/stalwart-mail --namespace mail> infra/services/stalwart-mail.yaml
 
 mail-create: mail-build
     kubectl create -f infra/services/stalwart-mail.yaml
@@ -97,3 +97,15 @@ mail-apply: mail-build
 
 mail-delete:
     kubectl delete -f infra/services/stalwart-mail.yaml
+
+harbor-build:
+    helm template harbor apps/harbor/harbor --namespace harbor > infra/services/harbor.yaml
+
+harbor-create: harbor-build
+    kubectl create -f infra/services/harbor.yaml
+
+harbor-apply: harbor-build
+    kubectl apply -f infra/services/harbor.yaml
+
+harbor-delete:
+    kubectl delete -f infra/services/harbor.yaml

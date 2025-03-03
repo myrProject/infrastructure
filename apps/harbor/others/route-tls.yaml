@@ -1,0 +1,39 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: harbor-nginx
+  namespace: harbor
+spec:
+  secretName: harbor-nginx
+  issuerRef:
+    name: digitalocean-clusterissuer
+    kind: ClusterIssuer
+  dnsNames:
+    - harbor.myr-project.eu
+    - core.harbor.myr-project.eu
+    - portal.harbor.myr-project.eu
+
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: harbor-route
+  namespace: harbor
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`harbor.myr-project.eu`)
+      services:
+        - name: harbor
+          port: 80
+    - match: Host(`core.harbor.myr-project.eu`)
+      services:
+        - name: harbor-core
+          port: 80
+    - match: Host(`portal.harbor.myr-project.eu`)
+      services:
+        - name: harbor-portal
+          port: 80
+  tls:
+    secretName: harbor-nginx
