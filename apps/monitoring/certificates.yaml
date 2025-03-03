@@ -1,0 +1,25 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: giraf-cert
+  namespace: grafana
+spec:
+  secretName: giraf-cert
+  dnsNames:
+    - giraf.myr-project.eu
+  issuerRef:
+    name: digitalocean-clusterissuer
+    kind: ClusterIssuer
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: prometheus-cert
+  namespace: prometheus
+spec:
+  secretName: prometheus-cert
+  dnsNames:
+    - prometheus.myr-project.eu
+  issuerRef:
+    name: digitalocean-clusterissuer
+    kind: ClusterIssuer

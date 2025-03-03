@@ -98,5 +98,5 @@ spec:
       services:
         - name: grafana
           port: 3000
-  # tls:
-  #   secretName: vw-ingressroute-certificate
+  tls:
+    secretName: giraf-cert

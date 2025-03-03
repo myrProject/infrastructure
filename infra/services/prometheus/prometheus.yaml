@@ -19,25 +19,25 @@ metadata:
   name: prometheus
   namespace: prometheus
 rules:
-- apiGroups: [""]
-  resources:
-  - nodes
-  - nodes/metrics
-  - services
-  - endpoints
-  - pods
-  verbs: ["get", "list", "watch"]
-- apiGroups: [""]
-  resources:
-  - configmaps
-  verbs: ["get"]
-- apiGroups:
-  - networking.k8s.io
-  resources:
-  - ingresses
-  verbs: ["get", "list", "watch"]
-- nonResourceURLs: ["/metrics"]
-  verbs: ["get"]
+  - apiGroups: [""]
+    resources:
+      - nodes
+      - nodes/metrics
+      - services
+      - endpoints
+      - pods
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources:
+      - configmaps
+    verbs: ["get"]
+  - apiGroups:
+      - networking.k8s.io
+    resources:
+      - ingresses
+    verbs: ["get", "list", "watch"]
+  - nonResourceURLs: ["/metrics"]
+    verbs: ["get"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -49,9 +49,9 @@ roleRef:
   kind: ClusterRole
   name: prometheus
 subjects:
-- kind: ServiceAccount
-  name: prometheus
-  namespace: prometheus
+  - kind: ServiceAccount
+    name: prometheus
+    namespace: prometheus
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: Prometheus
@@ -86,9 +86,9 @@ metadata:
     app: prometheus
 spec:
   ports:
-  - name: web
-    port: 9090
-    targetPort: web
+    - name: web
+      port: 9090
+      targetPort: web
   selector:
     app.kubernetes.io/name: prometheus
   sessionAffinity: ClientIP
@@ -107,8 +107,8 @@ spec:
       services:
         - name: prometheus
           port: 9090
-  # tls:
-  #   secretName: vw-ingressroute-certificate
+  tls:
+    secretName: prometheus-cert
 ---
 apiVersion: apps/v1
 kind: DaemonSet
@@ -128,50 +128,50 @@ spec:
         app.kubernetes.io/name: node-exporter
     spec:
       securityContext:
-        fsGroup: 65534  # nobody group
+        fsGroup: 65534 # nobody group
         runAsNonRoot: true
         runAsUser: 65534 # nobody user
       containers:
-      - name: node-exporter
-        image: prom/node-exporter:v1.7.0
-        args:
-          - --path.sysfs=/host/sys
-          - --path.rootfs=/host/root
-          - --no-collector.wifi
-          - --no-collector.hwmon
-          - --collector.filesystem.ignored-mount-points=^/(dev|proc|sys|var/lib/docker/.+|var/lib/kubelet/pods/.+)($|/)
-          - --collector.netclass.ignored-devices=^(veth.*)$
-        ports:
-        - name: metrics
-          containerPort: 9100
-          protocol: TCP
-        resources:
-          limits:
-            cpu: 250m
-            memory: 180Mi
-          requests:
-            cpu: 102m
-            memory: 180Mi
-        securityContext:
-          allowPrivilegeEscalation: false
-          readOnlyRootFilesystem: true
-          capabilities:
-            drop:
-              - ALL
-        volumeMounts:
-        - mountPath: /host/sys
-          name: sys
-          readOnly: true
-        - mountPath: /host/root
-          name: root
-          readOnly: true
+        - name: node-exporter
+          image: prom/node-exporter:v1.7.0
+          args:
+            - --path.sysfs=/host/sys
+            - --path.rootfs=/host/root
+            - --no-collector.wifi
+            - --no-collector.hwmon
+            - --collector.filesystem.ignored-mount-points=^/(dev|proc|sys|var/lib/docker/.+|var/lib/kubelet/pods/.+)($|/)
+            - --collector.netclass.ignored-devices=^(veth.*)$
+          ports:
+            - name: metrics
+              containerPort: 9100
+              protocol: TCP
+          resources:
+            limits:
+              cpu: 250m
+              memory: 180Mi
+            requests:
+              cpu: 102m
+              memory: 180Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - mountPath: /host/sys
+              name: sys
+              readOnly: true
+            - mountPath: /host/root
+              name: root
+              readOnly: true
       volumes:
-      - name: sys
-        hostPath:
-          path: /sys
-      - name: root
-        hostPath:
-          path: /
+        - name: sys
+          hostPath:
+            path: /sys
+        - name: root
+          hostPath:
+            path: /
 ---
 apiVersion: v1
 kind: Service
@@ -187,10 +187,10 @@ spec:
   selector:
     app.kubernetes.io/name: node-exporter
   ports:
-  - name: metrics
-    protocol: TCP
-    port: 9100
-    targetPort: 9100
+    - name: metrics
+      protocol: TCP
+      port: 9100
+      targetPort: 9100
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
@@ -207,5 +207,5 @@ spec:
     matchLabels:
       app.kubernetes.io/name: node-exporter
   endpoints:
-  - port: metrics
-    interval: 30s
+    - port: metrics
+      interval: 30s
