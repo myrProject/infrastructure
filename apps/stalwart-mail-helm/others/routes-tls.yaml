@@ -99,7 +99,7 @@ metadata:
   namespace: mail
 spec:
   entryPoints:
-    - smtp
+    - websecure
   routes:
     - match: HostSNI(`smtp.myr-project.eu`)
       services:
@@ -115,7 +115,7 @@ metadata:
   namespace: mail
 spec:
   entryPoints:
-    - submission
+    - websecure
   routes:
     - match: HostSNI(`submission.myr-project.eu`)
       services:
@@ -131,7 +131,7 @@ metadata:
   namespace: mail
 spec:
   entryPoints:
-    - smtps
+    - websecure
   routes:
     - match: HostSNI(`smtps.myr-project.eu`)
       services:
@@ -147,7 +147,7 @@ metadata:
   namespace: mail
 spec:
   entryPoints:
-    - imap
+    - websecure
   routes:
     - match: HostSNI(`imap.myr-project.eu`)
       services:
@@ -163,7 +163,7 @@ metadata:
   namespace: mail
 spec:
   entryPoints:
-    - imaps
+    - websecure
   routes:
     - match: HostSNI(`imaps.myr-project.eu`)
       services:
@@ -179,7 +179,7 @@ metadata:
   namespace: mail
 spec:
   entryPoints:
-    - sieve
+    - websecure
   routes:
     - match: HostSNI(`sieve.myr-project.eu`)
       services:
@@ -191,7 +191,7 @@ spec:
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
-  name: http-ingress-route
+  name: mail-web-ingress-route
   namespace: mail
 spec:
   entryPoints:
