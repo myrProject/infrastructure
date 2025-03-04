@@ -1,0 +1,302 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: matrix-storage
+  namespace: matrix
+spec:
+  storageClassName: local-path
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: matrix
+  namespace: matrix
+data:
+  homeserver.yaml: |
+    server_name: "matrix.myr-project.eu"
+    listeners:
+      - port: 8008
+        tls: false
+        type: http
+        x_forwarded: true
+        resources:
+          - names: [client, federation]
+            compress: false
+      - port: 8448
+        tls: false
+        type: http
+        x_forwarded: true
+        resources:
+          - names: [federation]
+            compress: false
+    database:
+      name: psycopg2
+      args:
+        user: app
+        password: password
+        database: synapse
+        host: cluster-rw.database.svc.cluster.local
+        port: 5432
+    media_store_path: /data
+    registration_shared_secret: "CFMD=5=bw6SeSvv;,cm1t6eXiQ9Pt1,jm=V8.NrN1eFlM8q18_"
+    report_stats: true
+    macaroon_secret_key: "wB_oCj=dqDGN8-~*bDr-Sn#HUa2vYnLoY0KRJP6nWnHUVo#-Tq"
+    form_secret: "6wWs=wqP6bBAjwibVEkj91xh6oBK&TwwPOO2RqUf5Ba,TiXh*-"
+    signing_key_path: "/config/matrix-kub-test.duckdns.org.signing.key"
+    trusted_key_servers:
+      - server_name: "matrix.org"
+    enable_registration: true
+    registration_requires_token: false
+    enable_registration_without_verification: true
+  matrix-kub-test.duckdns.org.log.config: |
+    version: 1
+    formatters:
+      precise:
+        format: '%(asctime)s - %(name)s - %(lineno)d - %(levelname)s - %(request)s - %(message)s'
+    handlers:
+      console:
+        class: logging.StreamHandler
+        formatter: precise
+    loggers:
+      _placeholder:
+        level: "INFO"
+      synapse.storage.SQL:
+        level: INFO
+    root:
+      level: INFO
+      handlers: [console]
+    disable_existing_loggers: false
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: matrix-key
+  namespace: matrix
+stringData:
+  matrix-kub-test.duckdns.org.signing.key: |
+    ed25519 a_LfZN w98X7LoMLkiGUvUZszq1Z4OeriaHeF/XkOvwUtHZeOo
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    k8s-app: matrix
+  name: matrix
+  namespace: matrix
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      k8s-app: matrix
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        k8s-app: matrix
+      name: matrix
+    spec:
+      containers:
+      - env:
+        - name: SYNAPSE_CONFIG_DIR
+          value: /config
+        - name: SYNAPSE_CONFIG_PATH
+          value: /config/homeserver.yaml
+        image: matrixdotorg/synapse:latest
+        imagePullPolicy: Always
+        name: matrix
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /config/homeserver.yaml
+          name: matrix-cm
+          subPath: homeserver.yaml
+        - mountPath: /config/matrix-kub-test.duckdns.org.log.config
+          name: matrix-cm
+          subPath: matrix-kub-test.duckdns.org.log.config
+        - mountPath: /data
+          name: matrix-pv
+          subPath: matrix
+        - mountPath: /config/matrix-kub-test.duckdns.org.signing.key
+          name: matrix-key
+          subPath: matrix-kub-test.duckdns.org.signing.key
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      securityContext:
+        fsGroup: 991
+      schedulerName: default-scheduler
+      terminationGracePeriodSeconds: 10
+      volumes:
+      - name: matrix-key
+        secret:
+          defaultMode: 420
+          items:
+          - key: matrix-kub-test.duckdns.org.signing.key
+            path: matrix-kub-test.duckdns.org.signing.key
+          secretName: matrix-key
+      - name: matrix-pv
+        persistentVolumeClaim:
+          claimName: matrix-storage
+      - name: matrix-cm
+        configMap:
+          name: matrix
+          defaultMode: 420
+          items:
+          - key: homeserver.yaml
+            path: homeserver.yaml
+          - key: matrix-kub-test.duckdns.org.log.config
+            path: matrix-kub-test.duckdns.org.log.config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    k8s-app: postgres
+  name: matrix
+  namespace: matrix
+spec:
+  ports:
+  - name: matrix
+    port: 8008
+    protocol: TCP
+    targetPort: 8008
+  selector:
+    k8s-app: matrix
+  sessionAffinity: None
+  type: ClusterIP
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: well-known-redirect
+  namespace: matrix
+spec:
+  redirectRegex:
+    regex: "^/.well-known/matrix/(.*)"
+    replacement: "https://matrix.myr-project.eu:31501/.well-known/matrix/$1"
+    permanent: true
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: cors-headers
+  namespace: matrix
+spec:
+  headers:
+    accessControlAllowOriginList:
+      - "*"
+    accessControlAllowMethods:
+      - GET
+      - OPTIONS
+    accessControlAllowHeaders:
+      - Content-Type
+      - Authorization
+      - X-Requested-With
+    addVaryHeader: true
+    accessControlAllowCredentials: true
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: matrix-ingress
+  namespace: matrix
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`matrix.myr-project.eu`)
+      kind: Rule
+      middlewares:
+        - name: well-known-redirect
+        - name: cors-headers
+      services:
+        - name: matrix
+          port: 8008
+  tls:
+    secretName: matrix-ingressroute-certificate
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: well-known-matrix
+  namespace: matrix
+data:
+  client: |
+    {
+      "m.homeserver": {
+        "base_url": "https://matrix.myr-project.eu:31501"
+      },
+      "m.identity_server": {
+        "base_url": "https://vector.im"
+      }
+    }
+  server: |
+    {
+      "m.server": "matrix.myr-project.eu:443"
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: well-known-server
+  namespace: matrix
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: well-known-server
+  template:
+    metadata:
+      labels:
+        app: well-known-server
+    spec:
+      containers:
+        - name: nginx
+          image: nginx
+          volumeMounts:
+            - name: well-known-volume
+              mountPath: /usr/share/nginx/html/.well-known/matrix
+      volumes:
+        - name: well-known-volume
+          configMap:
+            name: well-known-matrix
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: well-known
+  namespace: matrix
+spec:
+  selector:
+    app: well-known-server
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: well-known-ingress
+  namespace: matrix
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`matrix.myr-project.eu`) && PathPrefix(`/.well-known/matrix/`)
+      kind: Rule
+      middlewares:
+        - name: cors-headers
+      services:
+        - name: well-known
+          port: 80
+  tls:
+    secretName: matrix-ingressroute-certificate
