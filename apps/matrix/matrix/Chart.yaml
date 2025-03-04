@@ -1,0 +1,7 @@
+apiVersion: v2
+name: matrix
+version: 0.0.1
+dependencies:
+  - name: matrix
+    version: 18.4.0
+    repository: https://small-hack.github.io/matrix-chart
