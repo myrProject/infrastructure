@@ -1,0 +1,22 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: minio-ingressroute-certificate
+  namespace: cert-manager
+spec:
+  # Secret names are always required.
+  secretName: minio-ingressroute-certificate
+
+  issuerRef:
+    name: digitalocean-clusterissuer
+    kind: ClusterIssuer
+
+  dnsNames:
+    - minio.myr-project.eu
+
+  secretTemplate:
+    annotations:
+      reflector.v1.k8s.emberstack.com/reflection-allowed: "true"
+      reflector.v1.k8s.emberstack.com/reflection-allowed-namespaces: "minio"
+      reflector.v1.k8s.emberstack.com/reflection-auto-enabled: "true"
+      reflector.v1.k8s.emberstack.com/reflection-auto-namespaces: "minio"
