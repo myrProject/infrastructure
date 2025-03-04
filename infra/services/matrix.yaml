@@ -105,29 +105,29 @@ spec:
       name: matrix
     spec:
       containers:
-      - env:
-        - name: SYNAPSE_CONFIG_DIR
-          value: /config
-        - name: SYNAPSE_CONFIG_PATH
-          value: /config/homeserver.yaml
-        image: matrixdotorg/synapse:latest
-        imagePullPolicy: Always
-        name: matrix
-        terminationMessagePath: /dev/termination-log
-        terminationMessagePolicy: File
-        volumeMounts:
-        - mountPath: /config/homeserver.yaml
-          name: matrix-cm
-          subPath: homeserver.yaml
-        - mountPath: /config/matrix-kub-test.duckdns.org.log.config
-          name: matrix-cm
-          subPath: matrix-kub-test.duckdns.org.log.config
-        - mountPath: /data
-          name: matrix-pv
-          subPath: matrix
-        - mountPath: /config/matrix-kub-test.duckdns.org.signing.key
-          name: matrix-key
-          subPath: matrix-kub-test.duckdns.org.signing.key
+        - env:
+            - name: SYNAPSE_CONFIG_DIR
+              value: /config
+            - name: SYNAPSE_CONFIG_PATH
+              value: /config/homeserver.yaml
+          image: matrixdotorg/synapse:latest
+          imagePullPolicy: Always
+          name: matrix
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+            - mountPath: /config/homeserver.yaml
+              name: matrix-cm
+              subPath: homeserver.yaml
+            - mountPath: /config/matrix-kub-test.duckdns.org.log.config
+              name: matrix-cm
+              subPath: matrix-kub-test.duckdns.org.log.config
+            - mountPath: /data
+              name: matrix-pv
+              subPath: matrix
+            - mountPath: /config/matrix-kub-test.duckdns.org.signing.key
+              name: matrix-key
+              subPath: matrix-kub-test.duckdns.org.signing.key
       dnsPolicy: ClusterFirst
       restartPolicy: Always
       securityContext:
@@ -135,25 +135,25 @@ spec:
       schedulerName: default-scheduler
       terminationGracePeriodSeconds: 10
       volumes:
-      - name: matrix-key
-        secret:
-          defaultMode: 420
-          items:
-          - key: matrix-kub-test.duckdns.org.signing.key
-            path: matrix-kub-test.duckdns.org.signing.key
-          secretName: matrix-key
-      - name: matrix-pv
-        persistentVolumeClaim:
-          claimName: matrix-storage
-      - name: matrix-cm
-        configMap:
-          name: matrix
-          defaultMode: 420
-          items:
-          - key: homeserver.yaml
-            path: homeserver.yaml
-          - key: matrix-kub-test.duckdns.org.log.config
-            path: matrix-kub-test.duckdns.org.log.config
+        - name: matrix-key
+          secret:
+            defaultMode: 420
+            items:
+              - key: matrix-kub-test.duckdns.org.signing.key
+                path: matrix-kub-test.duckdns.org.signing.key
+            secretName: matrix-key
+        - name: matrix-pv
+          persistentVolumeClaim:
+            claimName: matrix-storage
+        - name: matrix-cm
+          configMap:
+            name: matrix
+            defaultMode: 420
+            items:
+              - key: homeserver.yaml
+                path: homeserver.yaml
+              - key: matrix-kub-test.duckdns.org.log.config
+                path: matrix-kub-test.duckdns.org.log.config
 ---
 apiVersion: v1
 kind: Service
@@ -164,10 +164,10 @@ metadata:
   namespace: matrix
 spec:
   ports:
-  - name: matrix
-    port: 8008
-    protocol: TCP
-    targetPort: 8008
+    - name: matrix
+      port: 8008
+      protocol: TCP
+      targetPort: 8008
   selector:
     k8s-app: matrix
   sessionAffinity: None
@@ -195,6 +195,7 @@ spec:
       - "*"
     accessControlAllowMethods:
       - GET
+      - PUT
       - OPTIONS
     accessControlAllowHeaders:
       - Content-Type
@@ -240,7 +241,7 @@ data:
     }
   server: |
     {
-      "m.server": "matrix.myr-project.eu:443"
+      "m.server": "matrix.myr-project.eu:31501"
     }
 ---
 apiVersion: apps/v1
