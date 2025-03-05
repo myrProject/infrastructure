@@ -20,6 +20,8 @@ To recover the admin password, use the following command:
 kubectl exec -it <kanidmd-pod> -n kanidm -- kanidmd recover-account idm_admin
 ```
 
+z7ZTXBXqTZd9RTZeu67exAqV5vy3DzkuRVk3wPTsEvp1yfvC
+
 Replace `<kanidmd-pod>` with the actual pod name where Kanidm is running.
 
 ## Login
@@ -85,6 +87,9 @@ To update the user's password as an admin:
 ```bash
 kanidm person credential update utilisateur_demo --name idm_admin
 ```
+
+Unix password :
+chibreRouxNoir
 
 ## Group Management
 
