@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgresql-uri
+  namespace: wiki
+type: Opaque
+stringData:
+  postgresql-uri: "postgresql://app:password@cluster-rw.database.svc.cluster.local:5432/wiki"
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: wiki-db
+  namespace: database
+spec:
+  name: wiki
+  owner: app
+  cluster:
+    name: cluster

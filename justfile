@@ -118,3 +118,13 @@ matrix-create: matrix-build
 
 matrix-delete:
     kubectl delete -f infra/services/matrix.yaml
+
+
+wiki-build:
+    helm template matrix apps/wiki/wiki --namespace wiki > infra/services/wiki.yaml
+
+wiki-create:
+    kubectl create -f infra/services/wiki.yaml
+
+wiki-delete:
+    kubectl delete -f infra/services/wiki.yaml

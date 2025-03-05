@@ -1,303 +1,2814 @@
+---
+# Source: matrix/charts/matrix/templates/exim/network-policy.yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: matrix-exim-relay
+  labels:
+    helm.sh/chart: matrix-18.4.0
+    app.kubernetes.io/version: "v1.122.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: "matrix"
+    component: mail
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: matrix-exim-relay
+      app.kubernetes.io/instance: matrix
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: matrix-synapse
+          app.kubernetes.io/instance: matrix
+    ports:
+      - port: smtp
+        protocol: TCP
+---
+# Source: matrix/charts/matrix/templates/synapse/network-policy.yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: matrix-synapse
+  labels:
+    helm.sh/chart: matrix-18.4.0
+    app.kubernetes.io/version: "v1.122.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: "matrix"
+    component: synapse
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: matrix-synapse
+      app.kubernetes.io/instance: matrix
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              matrix-chart/allow-synapse-access: allow
+              app.kubernetes.io/instance: matrix
+      ports:
+        - port: http
+          protocol: TCP
+        - port: 5432
+          protocol: TCP
+---
+# Source: matrix/charts/matrix/templates/bridge-mautrix-discord/secret-config.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: matrix-discord-config
+  labels:
+
+    helm.sh/chart: matrix-18.4.0
+    app.kubernetes.io/version: "v1.122.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: "matrix"
+stringData:
+  config.yaml: |    
+    # Homeserver details.
+    homeserver:
+        # The address that this appservice can use to connect to the homeserver.
+        address: https://https://matrix.myr-project.eu
+        # Publicly accessible base URL for media, used for avatars in relay mode.
+        # If not set, the connection address above will be used.
+        public_address: 
+        # The domain of the homeserver (also known as server_name, used for MXIDs, etc).
+        domain: matrix.myr-project.eu
+    
+        # What software is the homeserver running?
+        # Standard Matrix homeservers like Synapse, Dendrite and Conduit should just use "standard" here.
+        software: standard
+        # The URL to push real-time bridge status to.
+        # If set, the bridge will make POST requests to this URL whenever a user's discord connection state changes.
+        # The bridge will use the appservice as_token to authorize requests.
+        status_endpoint: 
+        # Endpoint for reporting per-message status.
+        message_send_checkpoint_endpoint: 
+        # Does the homeserver support https://github.com/matrix-org/matrix-spec-proposals/pull/2246?
+        async_media: false
+    
+        # Should the bridge use a websocket for connecting to the homeserver?
+        # The server side is currently not documented anywhere and is only implemented by mautrix-wsproxy,
+        # mautrix-asmux (deprecated), and hungryserv (proprietary).
+        websocket: false
+        # How often should the websocket be pinged? Pinging will be disabled if this is zero.
+        ping_interval_seconds: 0
+    
+    # Application service host/registration related details.
+    # Changing these values requires regeneration of the registration.
+    appservice:
+        # The address that the homeserver can use to connect to this appservice.
+        address: "http://matrix-bridge-discord:29334"
+    
+        # The hostname and port where this appservice should listen.
+        hostname: 0.0.0.0
+        port: 29334
+    
+        # Database config.
+        database:
+            # The database type. "sqlite3-fk-wal" and "postgres" are supported.
+            type: sqlite3-fk-wal
+            # The database URI.
+            # SQLite: A raw file path is supported, but
+            #   `file:<path>?_txlock=immediate` is recommended.
+            #   https://github.com/mattn/go-sqlite3#connection-string
+            # Postgres: Connection string. For example,
+            #   postgres://user:password@host/database?sslmode=disable
+            # To connect via Unix socket, use something like,
+            #   postgres:///dbname?host=/var/run/postgresql
+            uri: file:/mautrixdiscord.db?_txlock=immediate
+            # Maximum number of connections. Mostly relevant for Postgres.
+            max_open_conns: 20
+            max_idle_conns: 2
+            # Maximum connection idle time and lifetime before they're closed. Disabled if null.
+            # Parsed with https://pkg.go.dev/time#ParseDuration
+            max_conn_idle_time: 
+            max_conn_lifetime: 
+    
+        # The unique ID of this appservice.
+        id: discord
+        # Appservice bot details.
+        bot:
+            # Username of the appservice bot.
+            username: discordbot
+            # Display name and avatar for bot. Set to "remove" to remove display name/avatar, leave empty
+            # to leave display name/avatar as-is.
+            displayname: Discord bridge bot
+            avatar: remove
+    
+        # Whether or not to receive ephemeral events via appservice transactions.
+        # Requires MSC2409 support (i.e. Synapse 1.22+).
+        ephemeral_events: true
+    
+        # Should incoming events be handled asynchronously?
+        # This may be necessary for large public instances with lots of messages going through.
+        # However, messages will not be guaranteed to be bridged in the same order they were sent in.
+        async_transactions: false
+    
+        # Authentication tokens for AS <-> HS communication. Autogenerated; do not modify.
+        as_token: "V5IEjKG54V7temlXwBtNmWsxHTzdzRSaNy6GuosvlsRStpMNv7K2YNaxhTdMyO8u"
+        hs_token: "rgag6zNUdv0RVNZWA02m1sCR9ShN6vuRjAca2ku1shaxPoK5YoruqpRBRRsspHfA"
+    
+    # Bridge config
+    bridge:
+        # Localpart template of MXIDs for Discord users.
+        # {{.}} is replaced with the internal ID of the Discord user.
+        username_template: "{{`discord_{{.}}`}}"
+        # Displayname template for Discord users. This is also used as the room name in DMs if private_chat_portal_meta is enabled.
+        # Available variables:
+        #   .ID - Internal user ID
+        #   .Username - Legacy display/username on Discord
+        #   .GlobalName - New displayname on Discord
+        #   .Discriminator - The 4 numbers after the name on Discord
+        #   .Bot - Whether the user is a bot
+        #   .System - Whether the user is an official system user
+        #   .Webhook - Whether the user is a webhook and is not an application
+        #   .Application - Whether the user is an application
+        displayname_template: "{{or .GlobalName .Username}}{{if .Bot}} (bot){{end}}"
+        # Displayname template for Discord channels (bridged as rooms, or spaces when type=4).
+        # Available variables:
+        #   .Name - Channel name, or user displayname (pre-formatted with displayname_template) in DMs.
+        #   .ParentName - Parent channel name (used for categories).
+        #   .GuildName - Guild name.
+        #   .NSFW - Whether the channel is marked as NSFW.
+        #   .Type - Channel type (see values at https://github.com/bwmarrin/discordgo/blob/v0.25.0/structs.go#L251-L267)
+        channel_name_template: "{{if or (eq .Type 3) (eq .Type 4)}}{{.Name}}{{else}}#{{.Name}}{{end}}"
+        # Displayname template for Discord guilds (bridged as spaces).
+        # Available variables:
+        #   .Name - Guild name
+        guild_name_template: "{{.Name}}"
+        # Whether to explicitly set the avatar and room name for private chat portal rooms.
+        # If set to `default`, this will be enabled in encrypted rooms and disabled in unencrypted rooms.
+        # If set to `always`, all DM rooms will have explicit names and avatars set.
+        # If set to `never`, DM rooms will never have names and avatars set.
+        private_chat_portal_meta: default
+    
+        portal_message_buffer: 128
+    
+        # Number of private channel portals to create on bridge startup.
+        # Other portals will be created when receiving messages.
+        startup_private_channel_create_limit: 5
+        # Should the bridge send a read receipt from the bridge bot when a message has been sent to Discord?
+        delivery_receipts: false
+        # Whether the bridge should send the message status as a custom com.beeper.message_send_status event.
+        message_status_events: false
+        # Whether the bridge should send error notices via m.notice events when a message fails to bridge.
+        message_error_notices: true
+        # Should the bridge use space-restricted join rules instead of invite-only for guild rooms?
+        # This can avoid unnecessary invite events in guild rooms when members are synced in.
+        restricted_rooms: true
+        # Should the bridge automatically join the user to threads on Discord when the thread is opened on Matrix?
+        # This only works with clients that support thread read receipts (MSC3771 added in Matrix v1.4).
+        autojoin_thread_on_open: true
+        # Should inline fields in Discord embeds be bridged as HTML tables to Matrix?
+        # Tables aren't supported in all clients, but are the only way to emulate the Discord inline field UI.
+        embed_fields_as_tables: true
+        # Should guild channels be muted when the portal is created? This only meant for single-user instances,
+        # it won't mute it for all users if there are multiple Matrix users in the same Discord guild.
+        mute_channels_on_create: false
+        # Should the bridge update the m.direct account data event when double puppeting is enabled.
+        # Note that updating the m.direct event is not atomic (except with mautrix-asmux)
+        # and is therefore prone to race conditions.
+        sync_direct_chat_list: false
+        # Set this to true to tell the bridge to re-send m.bridge events to all rooms on the next run.
+        # This field will automatically be changed back to false after it, except if the config file is not writable.
+        resend_bridge_info: false
+        # Should incoming custom emoji reactions be bridged as mxc:// URIs?
+        # If set to false, custom emoji reactions will be bridged as the shortcode instead, and the image won't be available.
+        custom_emoji_reactions: true
+        # Should the bridge attempt to completely delete portal rooms when a channel is deleted on Discord?
+        # If true, the bridge will try to kick Matrix users from the room. Otherwise, the bridge only makes ghosts leave.
+        delete_portal_on_channel_delete: false
+        # Should the bridge delete all portal rooms when you leave a guild on Discord?
+        # This only applies if the guild has no other Matrix users on this bridge instance.
+        delete_guild_on_leave: true
+        # Whether or not created rooms should have federation enabled.
+        # If false, created portal rooms will never be federated.
+        federate_rooms: true
+        # Prefix messages from webhooks with the profile info? This can be used along with a custom displayname_template
+        # to better handle webhooks that change their name all the time (like ones used by bridges).
+        prefix_webhook_messages: false
+        # Bridge webhook avatars?
+        enable_webhook_avatars: true
+        # Should the bridge upload media to the Discord CDN directly before sending the message when using a user token,
+        # like the official client does? The other option is sending the media in the message send request as a form part
+        # (which is always used by bots and webhooks).
+        use_discord_cdn_upload: true
+        # Should mxc uris copied from Discord be cached?
+        # This can be `never` to never cache, `unencrypted` to only cache unencrypted mxc uris, or `always` to cache everything.
+        # If you have a media repo that generates non-unique mxc uris, you should set this to never.
+        cache_media: unencrypted
+        # Settings for converting Discord media to custom mxc:// URIs instead of reuploading.
+        # More details can be found at https://docs.mau.fi/bridges/go/discord/direct-media.html
+        direct_media:
+            # Should custom mxc:// URIs be used instead of reuploading media?
+            enabled: false
+            # The server name to use for the custom mxc:// URIs.
+            # This server name will effectively be a real Matrix server, it just won't implement anything other than media.
+            # You must either set up .well-known delegation from this domain to the bridge, or proxy the domain directly to the bridge.
+            server_name: discord-media.example.com
+            # Optionally a custom .well-known response. This defaults to `server_name:443`
+            well_known_response: 
+            # The bridge supports MSC3860 media download redirects and will use them if the requester supports it.
+            # Optionally, you can force redirects and not allow proxying at all by setting this to false.
+            allow_proxy: true
+            # Matrix server signing key to make the federation tester pass, same format as synapse's .signing.key file.
+            server_key: generate
+        # Settings for converting animated stickers.
+        animated_sticker:
+            # Format to which animated stickers should be converted.
+            # disable - No conversion, send as-is (lottie JSON)
+            # png - converts to non-animated png (fastest)
+            # gif - converts to animated gif
+            # webm - converts to webm video, requires ffmpeg executable with vp9 codec and webm container support
+            # webp - converts to animated webp, requires ffmpeg executable with webp codec/container support
+            target: webp
+            # Arguments for converter. All converters take width and height.
+            args:
+                width: 320
+                height: 320
+                # only for webm, webp and gif (2, 5, 10, 20 or 25 recommended)
+                fps: 25
+        # Servers to always allow double puppeting from# Allow using double puppeting from any server with a valid client .well-known file.
+        double_puppet_allow_discovery: false
+        # Shared secrets for https://github.com/devture/matrix-synapse-shared-secret-auth
+        #
+        # If set, double puppeting will be enabled automatically for local users
+        # instead of users having to find an access token and run `login-matrix`
+        # manually.# The prefix for commands. Only required in non-management rooms.
+        command_prefix: !discord
+        # Messages sent upon joining a management room.
+        # Markdown is supported. The defaults are listed below.
+        management_room_text:
+            # Sent when joining a room.
+            welcome: Hello, I'm a Discord bridge bot.
+            # Sent when joining a management room and the user is already logged in.
+            welcome_connected: Use `help` for help.
+            # Sent when joining a management room and the user is not logged in.
+            welcome_unconnected: Use `help` for help or `login` to log in.
+            # Optional extra text sent when joining a management room.
+            additional_help: 
+    
+        # Settings for backfilling messages.
+        backfill:
+            # Limits for forward backfilling.
+            forward_limits:
+                # Initial backfill (when creating portal). 0 means backfill is disabled.
+                # A special unlimited value is not supported, you must set a limit. Initial backfill will
+                # fetch all messages first before backfilling anything, so high limits can take a lot of time.
+                initial:
+                    dm: 0
+                    channel: 0
+                    thread: 0
+                # Missed message backfill (on startup).
+                # 0 means backfill is disabled, -1 means fetch all messages since last bridged message.
+                # When using unlimited backfill (-1), messages are backfilled as they are fetched.
+                # With limits, all messages up to the limit are fetched first and backfilled afterwards.
+                missed:
+                    dm: 0
+                    channel: 0
+                    thread: 0
+            # Maximum members in a guild to enable backfilling. Set to -1 to disable limit.
+            # This can be used as a rough heuristic to disable backfilling in channels that are too active.
+            # Currently only applies to missed message backfill.
+            max_guild_members: -1
+    
+        # End-to-bridge encryption support options.
+        #
+        # See https://docs.mau.fi/bridges/general/end-to-bridge-encryption.html for more info.
+        encryption:
+            # Allow encryption, work in group chat rooms with e2ee enabled
+            allow: false
+            # Default to encryption, force-enable encryption in all portals the bridge creates
+            # This will cause the bridge bot to be in private chats for the encryption to work properly.
+            default: false
+            # Whether to use MSC2409/MSC3202 instead of /sync long polling for receiving encryption-related data.
+            appservice: false
+            # Require encryption, drop any unencrypted messages.
+            require: false
+            # Enable key sharing? If enabled, key requests for rooms where users are in will be fulfilled.
+            # You must use a client that supports requesting keys from other users to use this feature.
+            allow_key_sharing: false
+            # Should users mentions be in the event wire content to enable the server to send push notifications?
+            plaintext_mentions: false
+            # Options for deleting megolm sessions from the bridge.
+            delete_keys:
+                # Beeper-specific: delete outbound sessions when hungryserv confirms
+                # that the user has uploaded the key to key backup.
+                delete_outbound_on_ack: false
+                # Don't store outbound sessions in the inbound table.
+                dont_store_outbound: false
+                # Ratchet megolm sessions forward after decrypting messages.
+                ratchet_on_decrypt: false
+                # Delete fully used keys (index >= max_messages) after decrypting messages.
+                delete_fully_used_on_decrypt: false
+                # Delete previous megolm sessions from same device when receiving a new one.
+                delete_prev_on_new_session: false
+                # Delete megolm sessions received from a device when the device is deleted.
+                delete_on_device_delete: false
+                # Periodically delete megolm sessions when 2x max_age has passed since receiving the session.
+                periodically_delete_expired: false
+                # Delete inbound megolm sessions that don't have the received_at field used for
+                # automatic ratcheting and expired session deletion. This is meant as a migration
+                # to delete old keys prior to the bridge update.
+                delete_outdated_inbound: false
+            # What level of device verification should be required from users?
+            #
+            # Valid levels:
+            #   unverified - Send keys to all device in the room.
+            #   cross-signed-untrusted - Require valid cross-signing, but trust all cross-signing keys.
+            #   cross-signed-tofu - Require valid cross-signing, trust cross-signing keys on first use (and reject changes).
+            #   cross-signed-verified - Require valid cross-signing, plus a valid user signature from the bridge bot.
+            #                           Note that creating user signatures from the bridge bot is not currently possible.
+            #   verified - Require manual per-device verification
+            #              (currently only possible by modifying the `trust` column in the `crypto_device` database table).
+            verification_levels:
+                # Minimum level for which the bridge should send keys to when bridging messages from WhatsApp to Matrix.
+                receive: unverified
+                # Minimum level that the bridge should accept for incoming Matrix messages.
+                send: unverified
+                # Minimum level that the bridge should require for accepting key requests.
+                share: cross-signed-tofu
+            # Options for Megolm room key rotation. These options allow you to
+            # configure the m.room.encryption event content. See:
+            # https://spec.matrix.org/v1.3/client-server-api/#mroomencryption for
+            # more information about that event.
+            rotation:
+                # Enable custom Megolm room key rotation settings. Note that these
+                # settings will only apply to rooms created after this option is
+                # set.
+                enable_custom: false
+                # The maximum number of milliseconds a session should be used
+                # before changing it. The Matrix spec recommends 604800000 (a week)
+                # as the default.
+                milliseconds: 6.048e+08
+                # The maximum number of messages that should be sent with a given a
+                # session before changing it. The Matrix spec recommends 100 as the
+                # default.
+                messages: 100
+    
+                # Disable rotating keys when a user's devices change?
+                # You should not enable this option unless you understand all the implications.
+                disable_device_change_key_rotation: false
+    
+        # Settings for provisioning API
+        provisioning:
+            # Prefix for the provisioning API paths.
+            prefix: /_matrix/provision
+            # Shared secret for authentication. If set to "generate", a random secret will be generated,
+            # or if set to "disable", the provisioning API will be disabled.
+            shared_secret: generate
+            # Enable debug API at /debug with provisioning authentication.
+            debug_endpoints: false
+    
+        # Permissions for using the bridge.
+        # Permitted values:
+        #    relay - Talk through the relaybot (if enabled), no access otherwise
+        #     user - Access to use the bridge to chat with a Discord account.
+        #    admin - User level and some additional administration tools
+        # Permitted keys:
+        #        * - All Matrix users
+        #   domain - All users on that homeserver
+        #     mxid - Specific user
+        permissions:
+            "*": relay
+            "matrix.myr-project.eu": user
+    
+    # Logging config. See https://github.com/tulir/zeroconfig for details.
+    logging:
+        min_level: debug
+        writers:
+        - type: stdout
+          format: pretty-colored
+        - type: file
+          format: json
+          filename: ./logs/mautrix-discord.log
+          max_size: 100
+          max_backups: 10
+          compress: true
+---
+# Source: matrix/charts/matrix/templates/synapse/database-secret.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: matrix-db-secret
+  labels:
+    app.kubernetes.io/name: matrix
+    helm.sh/chart: matrix-18.4.0
+    app.kubernetes.io/instance: matrix
+    app.kubernetes.io/managed-by: Helm
+type: Opaque
+data:
+  database: "c3luYXBzZQ=="
+  username: "YXBw"
+  password: "cGFzc3dvcmQ="
+---
+# Source: matrix/charts/matrix/templates/element/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: matrix-element-config
+  labels:
+
+    helm.sh/chart: matrix-18.4.0
+    app.kubernetes.io/version: "v1.122.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: "matrix"
+    
+    component: element
+data:
+  config.json: |
+    {
+      "default_server_config": {
+        "m.homeserver": {
+          "base_url": "https://matrix.myr-project.eu"
+        }
+      },
+      
+      "brand": "Element",
+      "branding": {
+      }, 
+      "showLabsSettings": true,
+      "features": {
+        "feature_new_spinner": "labs",
+        "feature_pinning": "labs",
+        "feature_custom_status": "labs",
+        "feature_custom_tags": "labs",
+        "feature_state_counters": "labs",
+        "feature_many_integration_managers": "labs",
+        "feature_mjolnir": "labs",
+        "feature_dm_verification": "labs",
+        "feature_bridge_state": "labs",
+        "feature_presence_in_room_list": "labs",
+        "feature_custom_themes": "labs"
+      },
+      "roomDirectory": {
+        "servers": ["matrix.org"]
+      },
+      "permalinkPrefix": "https://matrix.to"
+    }
+
+  nginx.conf: |
+    worker_processes  auto;
+
+    error_log  /var/log/nginx/error.log warn;
+    pid        /var/run/pid/nginx.pid;
+
+    events {
+      worker_connections  1024;
+    }
+
+    http {
+      include       /etc/nginx/mime.types;
+      default_type  application/octet-stream;
+
+      log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+      '$status $body_bytes_sent "$http_referer" '
+      '"$http_user_agent" "$http_x_forwarded_for"';
+
+      access_log  /var/log/nginx/access.log  main;
+
+      sendfile        on;
+      #tcp_nopush     on;
+
+      keepalive_timeout  65;
+
+      #gzip  on;
+
+      include /etc/nginx/conf.d/*.conf;
+    }
+
+  default.conf: |
+    server {
+      listen       8080;
+      server_name  localhost;
+
+      #charset koi8-r;
+      #access_log  /var/log/nginx/host.access.log  main;
+
+      location / {
+          root   /usr/share/nginx/html;
+          index  index.html index.htm;
+      }
+
+      #error_page  404              /404.html;
+
+      # redirect server error pages to the static page /50x.html
+      #
+      error_page   500 502 503 504  /50x.html;
+      location = /50x.html {
+          root   /usr/share/nginx/html;
+      }
+    }
+---
+# Source: matrix/charts/matrix/templates/synapse/initial-config-map.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: matrix-initial-synapse-config
+  labels:
+
+    helm.sh/chart: matrix-18.4.0
+    app.kubernetes.io/version: "v1.122.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: "matrix"
+
+    component: synapse
+data:
+  homeserver.yaml: |
+    
+    
+    ## Server ##
+    
+    # The domain name of the server, with optional explicit port.
+    # This is used by remote servers to connect to this server,
+    # e.g. matrix.org, localhost:8080, etc.
+    # This is also the last part of your UserID.
+    #
+    server_name: myr-project.eu
+    
+    # When running as a daemon, the file to store the pid in
+    #
+    pid_file: /data/homeserver.pid
+    
+    # The absolute URL to the web client which /_matrix/client will redirect
+    # to if 'webclient' is configured under the 'listeners' configuration.
+    #
+    # This option can be also set to the filesystem path to the web client
+    # which will be served at /_matrix/client/ if 'webclient' is configured
+    # under the 'listeners' configuration, however this is a security risk:
+    # https://github.com/matrix-org/synapse#security-note
+    #
+    
+    # The public-facing base URL that clients use to access this HS
+    # (not including _matrix/...). This is the same URL a user would
+    # enter into the 'custom HS URL' field on their client. If you
+    # use synapse with a reverse proxy, this should be the URL to reach
+    # synapse via the proxy.
+    #
+    public_baseurl: "https://matrix.myr-project.eu"
+    # Set the soft limit on the number of file descriptors synapse can use
+    # Zero is used to indicate synapse should set the soft limit to the
+    # hard limit.
+    #
+    #soft_file_limit: 0
+    
+    # Set to false to disable presence tracking on this homeserver.
+    #
+    use_presence: true
+    
+    # Whether to require authentication to retrieve profile data (avatars,
+    # display names) of other users through the client API. Defaults to
+    # 'false'. Note that profile data is also available via the federation
+    # API, so this setting is of limited value if federation is enabled on
+    # the server.
+    #
+    require_auth_for_profile_requests: true
+    
+    # Uncomment to require a user to share a room with another user in order
+    # to retrieve their profile information. Only checked on Client-Server
+    # requests. Profile requests from other servers should be checked by the
+    # requesting server. Defaults to 'false'.
+    #
+    limit_profile_requests_to_users_who_share_rooms: true
+    
+    # If set to 'true', removes the need for authentication to access the server's
+    # public rooms directory through the client API, meaning that anyone can
+    # query the room directory. Defaults to 'false'.
+    #
+    allow_public_rooms_without_auth: false
+    
+    # If set to 'true', allows any other homeserver to fetch the server's public
+    # rooms directory via federation. Defaults to 'false'.
+    #
+    allow_public_rooms_over_federation: false
+    
+    # The default room version for newly created rooms.
+    #
+    # Known room versions are listed here:
+    # https://matrix.org/docs/spec/#complete-list-of-room-versions
+    #
+    # For example, for room version 1, default_room_version should be set
+    # to "1".
+    #
+    #default_room_version: "5"
+    
+    # The GC threshold parameters to pass to `gc.set_threshold`, if defined
+    #
+    #gc_thresholds: [700, 10, 10]
+    
+    # Set the limit on the returned events in the timeline in the get
+    # and sync operations. The default value is -1, means no upper limit.
+    #
+    #filter_timeline_limit: 5000
+    
+    # Whether room invites to users on this server should be blocked
+    # (except those sent by local server admins). The default is False.
+    #
+    block_non_admin_invites: false
+    
+    # Room searching
+    #
+    # If disabled, new messages will not be indexed for searching and users
+    # will receive errors when searching for messages. Defaults to enabled.
+    #
+    enable_search: true
+    
+    # Restrict federation to the following whitelist of domains.
+    # N.B. we recommend also firewalling your federation listener to limit
+    # inbound federation traffic as early as possible, rather than relying
+    # purely on this application-layer restriction.  If not specified, the
+    # default is to whitelist everything.
+    
+    # This option prevents outgoing requests from being sent to the specified blacklisted IP address CIDR ranges. If this option is not specified then it defaults to private IP address ranges (see the example below).
+    #
+    # The blacklist applies to the outbound requests for federation, identity servers, push servers, and for checking key validity for third-party invite events.
+    #
+    # (0.0.0.0 and :: are always blacklisted, whether or not they are explicitly listed here, since they correspond to unroutable addresses.)
+    #
+    # This option replaces federation_ip_range_blacklist in Synapse v1.25.0.
+    # Note: The value is ignored when an HTTP proxy is in use.
+    
+    # List of ports that Synapse should listen on, their purpose and their
+    # configuration.
+    #
+    # Options for each listener include:
+    #
+    #   port: the TCP port to bind to
+    #
+    #   bind_addresses: a list of local addresses to listen on. The default is
+    #       'all local interfaces'.
+    #
+    #   type: the type of listener. Normally 'http', but other valid options are:
+    #       'manhole' (see docs/manhole.md),
+    #       'metrics' (see docs/metrics-howto.md),
+    #       'replication' (see docs/workers.md).
+    #
+    #   tls: set to true to enable TLS for this listener. Will use the TLS
+    #       key/cert specified in tls_private_key_path / tls_certificate_path.
+    #
+    #   x_forwarded: Only valid for an 'http' listener. Set to true to use the
+    #       X-Forwarded-For header as the client IP. Useful when Synapse is
+    #       behind a reverse-proxy.
+    #
+    #   resources: Only valid for an 'http' listener. A list of resources to host
+    #       on this port. Options for each resource are:
+    #
+    #       names: a list of names of HTTP resources. See below for a list of
+    #           valid resource names.
+    #
+    #       compress: set to true to enable HTTP comression for this resource.
+    #
+    #   additional_resources: Only valid for an 'http' listener. A map of
+    #        additional endpoints which should be loaded via dynamic modules.
+    #
+    # Valid resource names are:
+    #
+    #   client: the client-server API (/_matrix/client), and the synapse admin
+    #       API (/_synapse/admin). Also implies 'media' and 'static'.
+    #
+    #   consent: user consent forms (/_matrix/consent). See
+    #       docs/consent_tracking.md.
+    #
+    #   federation: the server-server API (/_matrix/federation). Also implies
+    #       'media', 'keys', 'openid'
+    #
+    #   keys: the key discovery API (/_matrix/keys).
+    #
+    #   media: the media API (/_matrix/media).
+    #
+    #   metrics: the metrics interface. See docs/metrics-howto.md.
+    #
+    #   openid: OpenID authentication.
+    #
+    #   replication: the HTTP replication API (/_synapse/replication). See
+    #       docs/workers.md.
+    #
+    #   static: static resources under synapse/static (/_matrix/static). (Mostly
+    #       useful for 'fallback authentication'.)
+    #
+    #   webclient: A web client. Requires web_client_location to be set.
+    #
+    listeners:
+      # TLS-enabled listener: for when matrix traffic is sent directly to synapse.
+      #
+      # Disabled by default. To enable it, uncomment the following. (Note that you
+      # will also need to give Synapse a TLS key and certificate: see the TLS section
+      # below.)
+      #
+      #- port: 8448
+      #  type: http
+      #  tls: true
+      #  resources:
+      #    - names: [client, federation]
+    
+      # Unsecure HTTP listener: for when matrix traffic passes through a reverse proxy
+      # that unwraps TLS.
+      #
+      # If you plan to use a reverse proxy, please see
+      # https://github.com/matrix-org/synapse/blob/master/docs/reverse_proxy.md.
+      #
+      - port: 8008
+        tls: false
+        type: http
+        x_forwarded: true
+        bind_addresses: ['0.0.0.0']
+    
+        resources:
+          - names: [client, federation]
+            compress: false
+    
+        # example additional_resources:
+        #
+        #additional_resources:
+        #  "/_matrix/my/custom/endpoint":
+        #    module: my_module.CustomRequestHandler
+        #    config: {}
+      - type: metrics
+        port: 9092
+        bind_addresses: ['0.0.0.0']
+    
+        resources:
+          - names: [metrics]
+      # Turn on the twisted ssh manhole service on localhost on the given
+      # port.
+      #
+      #- port: 9000
+      #  bind_addresses: ['::1', '127.0.0.1']
+      #  type: manhole
+    
+    # Forward extremities can build up in a room due to networking delays between
+    # homeservers. Once this happens in a large room, calculation of the state of
+    # that room can become quite expensive. To mitigate this, once the number of
+    # forward extremities reaches a given threshold, Synapse will send an
+    # org.matrix.dummy_event event, which will reduce the forward extremities
+    # in the room.
+    #
+    # This setting defines the threshold (i.e. number of forward extremities in the
+    # room) at which dummy events are sent. The default value is 10.
+    #
+    #dummy_events_threshold: 5
+    
+    
+    ## Homeserver blocking ##
+    
+    # How to reach the server admin, used in ResourceLimitError
+    #
+    admin_contact: 'mailto:admin@example.com'
+    
+    # Global blocking
+    #
+    hs_disabled: false
+    hs_disabled_message: 
+    
+    # Monthly Active User Blocking
+    #
+    # Used in cases where the admin or server owner wants to limit to the
+    # number of monthly active users.
+    #
+    # 'limit_usage_by_mau' disables/enables monthly active user blocking. When
+    # enabled and a limit is reached the server returns a 'ResourceLimitError'
+    # with error type Codes.RESOURCE_LIMIT_EXCEEDED
+    #
+    # 'max_mau_value' is the hard limit of monthly active users above which
+    # the server will start blocking user actions.
+    #
+    # 'mau_trial_days' is a means to add a grace period for active users. It
+    # means that users must be active for this number of days before they
+    # can be considered active and guards against the case where lots of users
+    # sign up in a short space of time never to return after their initial
+    # session.
+    #
+    # 'mau_limit_alerting' is a means of limiting client side alerting
+    # should the mau limit be reached. This is useful for small instances
+    # where the admin has 5 mau seats (say) for 5 specific people and no
+    # interest increasing the mau limit further. Defaults to True, which
+    # means that alerting is enabled
+    #
+    #limit_usage_by_mau: false
+    #max_mau_value: 50
+    #mau_trial_days: 2
+    #mau_limit_alerting: false
+    
+    # If enabled, the metrics for the number of monthly active users will
+    # be populated, however no one will be limited. If limit_usage_by_mau
+    # is true, this is implied to be true.
+    #
+    #mau_stats_only: false
+    
+    # Sometimes the server admin will want to ensure certain accounts are
+    # never blocked by mau checking. These accounts are specified here.
+    #
+    #mau_limit_reserved_threepids:
+    #  - medium: 'email'
+    #    address: 'reserved_user@example.com'
+    
+    # Used by phonehome stats to group together related servers.
+    #server_context: context
+    
+    # Resource-constrained homeserver settings
+    #
+    # When this is enabled, the room "complexity" will be checked before a user
+    # joins a new remote room. If it is above the complexity limit, the server will
+    # disallow joining, or will instantly leave.
+    #
+    # Room complexity is an arbitrary measure based on factors such as the number of
+    # users in the room.
+    #
+    limit_remote_rooms:
+      # Uncomment to enable room complexity checking.
+      #
+      #enabled: true
+    
+      # the limit above which rooms cannot be joined. The default is 1.0.
+      #
+      #complexity: 0.5
+    
+      # override the error which is returned when the room is too complex.
+      #
+      #complexity_error: "This room is too complex."
+    
+    # Whether to require a user to be in the room to add an alias to it.
+    # Defaults to 'true'.
+    #
+    #require_membership_for_aliases: false
+    
+    # Whether to allow per-room membership profiles through the send of membership
+    # events with profile information that differ from the target's global profile.
+    # Defaults to 'true'.
+    #
+    #allow_per_room_profiles: false
+    
+    # How long to keep redacted events in unredacted form in the database. After
+    # this period redacted events get replaced with their redacted form in the DB.
+    #
+    # Defaults to `7d`. Set to `null` to disable.
+    #
+    redaction_retention_period: 7d
+    
+    # How long to track users' last seen time and IPs in the database.
+    #
+    # Defaults to `28d`. Set to `null` to disable clearing out of old rows.
+    #
+    #user_ips_max_age: 14d
+    
+    # Message retention policy at the server level.
+    #
+    # Room admins and mods can define a retention period for their rooms using the
+    # 'm.room.retention' state event, and server admins can cap this period by setting
+    # the 'allowed_lifetime_min' and 'allowed_lifetime_max' config options.
+    #
+    # If this feature is enabled, Synapse will regularly look for and purge events
+    # which are older than the room's maximum retention period. Synapse will also
+    # filter events received over federation so that events that should have been
+    # purged are ignored and not stored again.
+    #
+    retention:
+      # The message retention policies feature is disabled by default. Uncomment the
+      # following line to enable it.
+      #
+      #enabled: true
+    
+      # Default retention policy. If set, Synapse will apply it to rooms that lack the
+      # 'm.room.retention' state event. Currently, the value of 'min_lifetime' doesn't
+      # matter much because Synapse doesn't take it into account yet.
+      #
+      #default_policy:
+      #  min_lifetime: 1d
+      #  max_lifetime: 1y
+    
+      # Retention policy limits. If set, a user won't be able to send a
+      # 'm.room.retention' event which features a 'min_lifetime' or a 'max_lifetime'
+      # that's not within this range. This is especially useful in closed federations,
+      # in which server admins can make sure every federating server applies the same
+      # rules.
+      #
+      #allowed_lifetime_min: 1d
+      #allowed_lifetime_max: 1y
+    
+      # Server admins can define the settings of the background jobs purging the
+      # events which lifetime has expired under the 'purge_jobs' section.
+      #
+      # If no configuration is provided, a single job will be set up to delete expired
+      # events in every room daily.
+      #
+      # Each job's configuration defines which range of message lifetimes the job
+      # takes care of. For example, if 'shortest_max_lifetime' is '2d' and
+      # 'longest_max_lifetime' is '3d', the job will handle purging expired events in
+      # rooms whose state defines a 'max_lifetime' that's both higher than 2 days, and
+      # lower than or equal to 3 days. Both the minimum and the maximum value of a
+      # range are optional, e.g. a job with no 'shortest_max_lifetime' and a
+      # 'longest_max_lifetime' of '3d' will handle every room with a retention policy
+      # which 'max_lifetime' is lower than or equal to three days.
+      #
+      # The rationale for this per-job configuration is that some rooms might have a
+      # retention policy with a low 'max_lifetime', where history needs to be purged
+      # of outdated messages on a more frequent basis than for the rest of the rooms
+      # (e.g. every 12h), but not want that purge to be performed by a job that's
+      # iterating over every room it knows, which could be heavy on the server.
+      #
+      #purge_jobs:
+      #  - shortest_max_lifetime: 1d
+      #    longest_max_lifetime: 3d
+      #    interval: 12h
+      #  - shortest_max_lifetime: 3d
+      #    longest_max_lifetime: 1y
+      #    interval: 1d
+    
+    # Inhibits the /requestToken endpoints from returning an error that might leak
+    # information about whether an e-mail address is in use or not on this
+    # homeserver.
+    # Note that for some endpoints the error situation is the e-mail already being
+    # used, and for others the error is entering the e-mail being unused.
+    # If this option is enabled, instead of returning an error, these endpoints will
+    # act as if no error happened and return a fake session ID ('sid') to clients.
+    #
+    #request_token_inhibit_3pid_errors: true
+    
+    
+    ## TLS ##
+    
+    # PEM-encoded X509 certificate for TLS.
+    # This certificate, as of Synapse 1.0, will need to be a valid and verifiable
+    # certificate, signed by a recognised Certificate Authority.
+    #
+    # See 'ACME support' below to enable auto-provisioning this certificate via
+    # Let's Encrypt.
+    #
+    # If supplying your own, be sure to use a `.pem` file that includes the
+    # full certificate chain including any intermediate certificates (for
+    # instance, if using certbot, use `fullchain.pem` as your certificate,
+    # not `cert.pem`).
+    #
+    #tls_certificate_path: "CONFDIR/SERVERNAME.tls.crt"
+    
+    # PEM-encoded private key for TLS
+    #
+    #tls_private_key_path: "CONFDIR/SERVERNAME.tls.key"
+    
+    # Whether to verify TLS server certificates for outbound federation requests.
+    #
+    # Defaults to `true`. To disable certificate verification, uncomment the
+    # following line.
+    #
+    #federation_verify_certificates: false
+    
+    # The minimum TLS version that will be used for outbound federation requests.
+    #
+    # Defaults to `1`. Configurable to `1`, `1.1`, `1.2`, or `1.3`. Note
+    # that setting this value higher than `1.2` will prevent federation to most
+    # of the public Matrix network: only configure it to `1.3` if you have an
+    # entirely private federation setup and you can ensure TLS 1.3 support.
+    #
+    federation_client_minimum_tls_version: 1.2
+    
+    # Skip federation certificate verification on the following whitelist
+    # of domains.
+    #
+    # This setting should only be used in very specific cases, such as
+    # federation over Tor hidden services and similar. For private networks
+    # of homeservers, you likely want to use a private CA instead.
+    #
+    # Only effective if federation_verify_certicates is `true`.
+    #
+    #federation_certificate_verification_whitelist:
+    #  - lon.example.com
+    #  - *.domain.com
+    #  - *.onion
+    
+    # List of custom certificate authorities for federation traffic.
+    #
+    # This setting should only normally be used within a private network of
+    # homeservers.
+    #
+    # Note that this list will replace those that are provided by your
+    # operating environment. Certificates must be in PEM format.
+    #
+    #federation_custom_ca_list:
+    #  - myCA1.pem
+    #  - myCA2.pem
+    #  - myCA3.pem
+    
+    # ACME support: This will configure Synapse to request a valid TLS certificate
+    # for your configured `server_name` via Let's Encrypt.
+    #
+    # Note that ACME v1 is now deprecated, and Synapse currently doesn't support
+    # ACME v2. This means that this feature currently won't work with installs set
+    # up after November 2019. For more info, and alternative solutions, see
+    # https://github.com/matrix-org/synapse/blob/master/docs/ACME.md#deprecation-of-acme-v1
+    #
+    # Note that provisioning a certificate in this way requires port 80 to be
+    # routed to Synapse so that it can complete the http-01 ACME challenge.
+    # By default, if you enable ACME support, Synapse will attempt to listen on
+    # port 80 for incoming http-01 challenges - however, this will likely fail
+    # with 'Permission denied' or a similar error.
+    #
+    # There are a couple of potential solutions to this:
+    #
+    #  * If you already have an Apache, Nginx, or similar listening on port 80,
+    #    you can configure Synapse to use an alternate port, and have your web
+    #    server forward the requests. For example, assuming you set 'port: 8009'
+    #    below, on Apache, you would write:
+    #
+    #    ProxyPass /.well-known/acme-challenge http://localhost:8009/.well-known/acme-challenge
+    #
+    #  * Alternatively, you can use something like `authbind` to give Synapse
+    #    permission to listen on port 80.
+    #
+    acme:
+        # ACME support is disabled by default. Set this to `true` and uncomment
+        # tls_certificate_path and tls_private_key_path above to enable it.
+        #
+        enabled: false
+    
+        # Endpoint to use to request certificates. If you only want to test,
+        # use Let's Encrypt's staging url:
+        #     https://acme-staging.api.letsencrypt.org/directory
+        #
+        #url: https://acme-v01.api.letsencrypt.org/directory
+    
+        # Port number to listen on for the HTTP-01 challenge. Change this if
+        # you are forwarding connections through Apache/Nginx/etc.
+        #
+        port: 80
+    
+        # Local addresses to listen on for incoming connections.
+        # Again, you may want to change this if you are forwarding connections
+        # through Apache/Nginx/etc.
+        #
+        bind_addresses: ['::', '0.0.0.0']
+    
+        # How many days remaining on a certificate before it is renewed.
+        #
+        reprovision_threshold: 30
+    
+        # The domain that the certificate should be for. Normally this
+        # should be the same as your Matrix domain (i.e., 'server_name'), but,
+        # by putting a file at 'https://<server_name>/.well-known/matrix/server',
+        # you can delegate incoming traffic to another server. If you do that,
+        # you should give the target of the delegation here.
+        #
+        # For example: if your 'server_name' is 'example.com', but
+        # 'https://example.com/.well-known/matrix/server' delegates to
+        # 'matrix.example.com', you should put 'matrix.example.com' here.
+        #
+        # If not set, defaults to your 'server_name'.
+        #
+        domain: matrix.example.com
+    
+        # file to use for the account key. This will be generated if it doesn't
+        # exist.
+        #
+        # If unspecified, we will use CONFDIR/client.key.
+        #
+        account_key_file: DATADIR/acme_account.key
+    
+    # List of allowed TLS fingerprints for this server to publish along
+    # with the signing keys for this server. Other matrix servers that
+    # make HTTPS requests to this server will check that the TLS
+    # certificates returned by this server match one of the fingerprints.
+    #
+    # Synapse automatically adds the fingerprint of its own certificate
+    # to the list. So if federation traffic is handled directly by synapse
+    # then no modification to the list is required.
+    #
+    # If synapse is run behind a load balancer that handles the TLS then it
+    # will be necessary to add the fingerprints of the certificates used by
+    # the loadbalancers to this list if they are different to the one
+    # synapse is using.
+    #
+    # Homeservers are permitted to cache the list of TLS fingerprints
+    # returned in the key responses up to the "valid_until_ts" returned in
+    # key. It may be necessary to publish the fingerprints of a new
+    # certificate and wait until the "valid_until_ts" of the previous key
+    # responses have passed before deploying it.
+    #
+    # You can calculate a fingerprint from a given TLS listener via:
+    # openssl s_client -connect $host:$port < /dev/null 2> /dev/null |
+    #   openssl x509 -outform DER | openssl sha256 -binary | base64 | tr -d '='
+    # or by checking matrix.org/federationtester/api/report?server_name=$host
+    #
+    #tls_fingerprints: [{"sha256": "<base64_encoded_sha256_fingerprint>"}]
+    
+    ## Database ##
+    
+    database:
+        # The database engine name
+        name: "psycopg2"
+        # Arguments to pass to the engine
+        args:
+            user: "REPLACE_ME"
+            password: "REPLACE_ME"
+            database: "REPLACE_ME"
+            host: "REPLACE_ME"
+            port: 5432
+            cp_min: 5
+            cp_max: 10
+    
+    # Number of events to cache in memory.
+    #
+    #event_cache_size: 10K
+    
+    
+    ## Logging ##
+    
+    # A yaml python logging config file as described by
+    # https://docs.python.org/3.7/library/logging.config.html#configuration-dictionary-schema
+    #
+    log_config: "/data/myr-project.eu.log.config"
+    
+    
+    ## Ratelimiting ##
+    
+    # Ratelimiting settings for client actions (registration, login, messaging).
+    #
+    # Each ratelimiting configuration is made of two parameters:
+    #   - per_second: number of requests a client can send per second.
+    #   - burst_count: number of requests a client can send before being throttled.
+    #
+    # Synapse currently uses the following configurations:
+    #   - one for messages that ratelimits sending based on the account the client
+    #     is using
+    #   - one for registration that ratelimits registration requests based on the
+    #     client's IP address.
+    #   - one for login that ratelimits login requests based on the client's IP
+    #     address.
+    #   - one for login that ratelimits login requests based on the account the
+    #     client is attempting to log into.
+    #   - one for login that ratelimits login requests based on the account the
+    #     client is attempting to log into, based on the amount of failed login
+    #     attempts for this account.
+    #   - one for ratelimiting redactions by room admins. If this is not explicitly
+    #     set then it uses the same ratelimiting as per rc_message. This is useful
+    #     to allow room admins to deal with abuse quickly.
+    #
+    # The defaults are as shown below.
+    #
+    #rc_message:
+    #  per_second: 0.2
+    #  burst_count: 10
+    #
+    #rc_registration:
+    #  per_second: 0.17
+    #  burst_count: 3
+    #
+    #rc_login:
+    #  address:
+    #    per_second: 0.17
+    #    burst_count: 3
+    #  account:
+    #    per_second: 0.17
+    #    burst_count: 3
+    #  failed_attempts:
+    #    per_second: 0.17
+    #    burst_count: 3
+    #
+    #rc_admin_redaction:
+    #  per_second: 1
+    #  burst_count: 50
+    
+    
+    # Ratelimiting settings for incoming federation
+    #
+    # The rc_federation configuration is made up of the following settings:
+    #   - window_size: window size in milliseconds
+    #   - sleep_limit: number of federation requests from a single server in
+    #     a window before the server will delay processing the request.
+    #   - sleep_delay: duration in milliseconds to delay processing events
+    #     from remote servers by if they go over the sleep limit.
+    #   - reject_limit: maximum number of concurrent federation requests
+    #     allowed from a single server
+    #   - concurrent: number of federation requests to concurrently process
+    #     from a single server
+    #
+    # The defaults are as shown below.
+    #
+    #rc_federation:
+    #  window_size: 1000
+    #  sleep_limit: 10
+    #  sleep_delay: 500
+    #  reject_limit: 50
+    #  concurrent: 3
+    
+    # Target outgoing federation transaction frequency for sending read-receipts,
+    # per-room.
+    #
+    # If we end up trying to send out more read-receipts, they will get buffered up
+    # into fewer transactions.
+    #
+    #federation_rr_transactions_per_room_per_second: 50
+    
+    
+    
+    ## Media Store ##
+    
+    # Enable the media store service in the Synapse master. Uncomment the
+    # following if you are using a separate media store worker.
+    #
+    #enable_media_repo: false
+    
+    # Directory where uploaded images and attachments are stored.
+    #
+    media_store_path: "/data/media_store"
+    
+    # Media storage providers allow media to be stored in different
+    # locations.
+    #
+    
+    # Directory where in-progress uploads are stored.
+    #
+    uploads_path: "/data/uploads"
+    
+    # The largest allowed upload size in bytes
+    
+    max_upload_size: 10M
+    
+    # Maximum number of pixels that will be thumbnailed
+    
+    max_image_pixels: 32M
+    
+    # Whether to generate new thumbnails on the fly to precisely match
+    # the resolution requested by the client. If true then whenever
+    # a new resolution is requested by the client the server will
+    # generate a new thumbnail. If false the server will pick a thumbnail
+    # from a precalculated list.
+    #
+    #dynamic_thumbnails: false
+    
+    # List of thumbnails to precalculate when an image is uploaded.
+    #
+    #thumbnail_sizes:
+    #  - width: 32
+    #    height: 32
+    #    method: crop
+    #  - width: 96
+    #    height: 96
+    #    method: crop
+    #  - width: 320
+    #    height: 240
+    #    method: scale
+    #  - width: 640
+    #    height: 480
+    #    method: scale
+    #  - width: 800
+    #    height: 600
+    #    method: scale
+    
+    # Is the preview URL API enabled?
+    #
+    # 'false' by default: uncomment the following to enable it (and specify a
+    # url_preview_ip_range_blacklist blacklist).
+    #
+    url_preview_enabled: false
+    
+    # List of IP address CIDR ranges that the URL preview spider is denied
+    # from accessing.  There are no defaults: you must explicitly
+    # specify a list for URL previewing to work.  You should specify any
+    # internal services in your network that you do not want synapse to try
+    # to connect to, otherwise anyone in any Matrix room could cause your
+    # synapse to issue arbitrary GET requests to your internal services,
+    # causing serious security issues.
+    #
+    # (0.0.0.0 and :: are always blacklisted, whether or not they are explicitly
+    # listed here, since they correspond to unroutable addresses.)
+    #
+    # This must be specified if url_preview_enabled is set. It is recommended that
+    # you uncomment the following list as a starting point.
+    url_preview_ip_range_blacklist:
+        - 127.0.0.0/8
+        - 10.0.0.0/8
+        - 172.16.0.0/12
+        - 192.168.0.0/16
+        - 100.64.0.0/10
+        - 169.254.0.0/16
+        - ::1/128
+        - fe80::/64
+        - fc00::/7
+    
+    # List of IP address CIDR ranges that the URL preview spider is allowed
+    # to access even if they are specified in url_preview_ip_range_blacklist.
+    # This is useful for specifying exceptions to wide-ranging blacklisted
+    # target IP ranges - e.g. for enabling URL previews for a specific private
+    # website only visible in your network.
+    
+    # Optional list of URL matches that the URL preview spider is
+    # denied from accessing.  You should use url_preview_ip_range_blacklist
+    # in preference to this, otherwise someone could define a public DNS
+    # entry that points to a private IP address and circumvent the blacklist.
+    # This is more useful if you know there is an entire shape of URL that
+    # you know that will never want synapse to try to spider.
+    #
+    # Each list entry is a dictionary of url component attributes as returned
+    # by urlparse.urlsplit as applied to the absolute form of the URL.  See
+    # https://docs.python.org/2/library/urlparse.html#urlparse.urlsplit
+    # The values of the dictionary are treated as an filename match pattern
+    # applied to that component of URLs, unless they start with a ^ in which
+    # case they are treated as a regular expression match.  If all the
+    # specified component matches for a given list item succeed, the URL is
+    # blacklisted.
+    
+    # The largest allowed URL preview spidering size in bytes
+    
+    max_spider_size: 10M
+    
+    ## Captcha ##
+    # See docs/CAPTCHA_SETUP for full details of configuring this.
+    
+    # This homeserver's ReCAPTCHA public key.
+    #
+    #recaptcha_public_key: "YOUR_PUBLIC_KEY"
+    
+    # This homeserver's ReCAPTCHA private key.
+    #
+    #recaptcha_private_key: "YOUR_PRIVATE_KEY"
+    
+    # Enables ReCaptcha checks when registering, preventing signup
+    # unless a captcha is answered. Requires a valid ReCaptcha
+    # public/private key.
+    #
+    #enable_registration_captcha: false
+    
+    # A secret key used to bypass the captcha test entirely.
+    #
+    #captcha_bypass_secret: "YOUR_SECRET_HERE"
+    
+    # The API endpoint to use for verifying m.login.recaptcha responses.
+    #
+    #recaptcha_siteverify_api: "https://www.recaptcha.net/recaptcha/api/siteverify"
+    
+    ## Registration ##
+    #
+    # Registration can be rate-limited using the parameters in the "Ratelimiting"
+    # section of this file.
+    
+    # Enable registration for new users.
+    #
+    enable_registration: true
+    
+    # Optional account validity configuration. This allows for accounts to be denied
+    # any request after a given period.
+    #
+    # ``enabled`` defines whether the account validity feature is enabled. Defaults
+    # to False.
+    #
+    # ``period`` allows setting the period after which an account is valid
+    # after its registration. When renewing the account, its validity period
+    # will be extended by this amount of time. This parameter is required when using
+    # the account validity feature.
+    #
+    # ``renew_at`` is the amount of time before an account's expiry date at which
+    # Synapse will send an email to the account's email address with a renewal link.
+    # This needs the ``email`` and ``public_baseurl`` configuration sections to be
+    # filled.
+    #
+    # ``renew_email_subject`` is the subject of the email sent out with the renewal
+    # link. ``%(app)s`` can be used as a placeholder for the ``app_name`` parameter
+    # from the ``email`` section.
+    #
+    # Once this feature is enabled, Synapse will look for registered users without an
+    # expiration date at startup and will add one to every account it found using the
+    # current settings at that time.
+    # This means that, if a validity period is set, and Synapse is restarted (it will
+    # then derive an expiration date from the current validity period), and some time
+    # after that the validity period changes and Synapse is restarted, the users'
+    # expiration dates won't be updated unless their account is manually renewed. This
+    # date will be randomly selected within a range [now + period - d ; now + period],
+    # where d is equal to 10% of the validity period.
+    #
+    #account_validity:
+    #  enabled: true
+    #  period: 6w
+    #  renew_at: 1w
+    #  renew_email_subject: "Renew your %(app)s account"
+    #  # Directory in which Synapse will try to find the HTML files to serve to the
+    #  # user when trying to renew an account. Optional, defaults to
+    #  # synapse/res/templates.
+    #  template_dir: "res/templates"
+    #  # HTML to be displayed to the user after they successfully renewed their
+    #  # account. Optional.
+    #  account_renewed_html_path: "account_renewed.html"
+    #  # HTML to be displayed when the user tries to renew an account with an invalid
+    #  # renewal token. Optional.
+    #  invalid_token_html_path: "invalid_token.html"
+    
+    # Time that a user's session remains valid for, after they log in.
+    #
+    # Note that this is not currently compatible with guest logins.
+    #
+    # Note also that this is calculated at login time: changes are not applied
+    # retrospectively to users who have already logged in.
+    #
+    # By default, this is infinite.
+    #
+    #session_lifetime: 24h
+    
+    # The user must provide all of the below types of 3PID when registering.
+    
+    # Explicitly disable asking for MSISDNs from the registration
+    # flow (overrides registrations_require_3pid if MSISDNs are set as required)
+    #
+    #disable_msisdn_registration: true
+    
+    # Mandate that users are only allowed to associate certain formats of
+    # 3PIDs with accounts on this server.
+    #
+    #allowed_local_3pids:
+    #  - medium: email
+    #    pattern: '.*@matrix\.org'
+    #  - medium: email
+    #    pattern: '.*@vector\.im'
+    #  - medium: msisdn
+    #    pattern: '\+44'
+    
+    # Enable 3PIDs lookup requests to identity servers from this server.
+    #
+    #enable_3pid_lookup: true
+    
+    # Set the number of bcrypt rounds used to generate password hash.
+    # Larger numbers increase the work factor needed to generate the hash.
+    # The default number is 12 (which equates to 2^12 rounds).
+    # N.B. that increasing this will exponentially increase the time required
+    # to register or login - e.g. 24 => 2^24 rounds which will take >20 mins.
+    #
+    #bcrypt_rounds: 12
+    
+    # Allows users to register as guests without a password/email/etc, and
+    # participate in rooms hosted on this server which have been made
+    # accessible to anonymous users.
+    
+    allow_guest_access: false
+    
+    # The identity server which we suggest that clients should use when users log
+    # in on this server.
+    #
+    # (By default, no suggestion is made, so it is left up to the client.
+    # This setting is ignored unless public_baseurl is also set.)
+    #
+    #default_identity_server: https://matrix.org
+    
+    # The list of identity servers trusted to verify third party
+    # identifiers by this server.
+    #
+    # Also defines the ID server which will be called when an account is
+    # deactivated (one will be picked arbitrarily).
+    #
+    # Note: This option is deprecated. Since v0.99.4, Synapse has tracked which identity
+    # server a 3PID has been bound to. For 3PIDs bound before then, Synapse runs a
+    # background migration script, informing itself that the identity server all of its
+    # 3PIDs have been bound to is likely one of the below.
+    #
+    # As of Synapse v1.4.0, all other functionality of this option has been deprecated, and
+    # it is now solely used for the purposes of the background migration script, and can be
+    # removed once it has run.
+    #trusted_third_party_id_servers:
+    #  - matrix.org
+    #  - vector.im
+    
+    # Handle threepid (email/phone etc) registration and password resets through a set of
+    # *trusted* identity servers. Note that this allows the configured identity server to
+    # reset passwords for accounts!
+    #
+    # Be aware that if `email` is not set, and SMTP options have not been
+    # configured in the email config block, registration and user password resets via
+    # email will be globally disabled.
+    #
+    # Additionally, if `msisdn` is not set, registration and password resets via msisdn
+    # will be disabled regardless. This is due to Synapse currently not supporting any
+    # method of sending SMS messages on its own.
+    #
+    # To enable using an identity server for operations regarding a particular third-party
+    # identifier type, set the value to the URL of that identity server as shown in the
+    # examples below.
+    #
+    # Servers handling the these requests must answer the `/requestToken` endpoints defined
+    # by the Matrix Identity Service API specification:
+    # https://matrix.org/docs/spec/identity_service/latest
+    #
+    # If a delegate is specified, the config option public_baseurl must also be filled out.
+    #
+    account_threepid_delegates:
+    #email: https://example.com     # Delegate email sending to example.com
+    #msisdn: http://localhost:8090  # Delegate SMS sending to this local process
+    
+    # Whether users are allowed to change their displayname after it has
+    # been initially set. Useful when provisioning users based on the
+    # contents of a third-party directory.
+    #
+    # Does not apply to server administrators. Defaults to 'true'
+    #
+    #enable_set_displayname: false
+    
+    # Whether users are allowed to change their avatar after it has been
+    # initially set. Useful when provisioning users based on the contents
+    # of a third-party directory.
+    #
+    # Does not apply to server administrators. Defaults to 'true'
+    #
+    #enable_set_avatar_url: false
+    
+    # Whether users can change the 3PIDs associated with their accounts
+    # (email address and msisdn).
+    #
+    # Defaults to 'true'
+    #
+    #enable_3pid_changes: false
+    
+    # Users who register on this homeserver will automatically be joined
+    # to these rooms
+    
+    # Where auto_join_rooms are specified, setting this flag ensures that the
+    # the rooms exist by creating them when the first user on the
+    # homeserver registers.
+    #
+    # By default the auto-created rooms are publicly joinable from any federated
+    # server. Use the autocreate_auto_join_rooms_federated and
+    # autocreate_auto_join_room_preset settings below to customise this behaviour.
+    #
+    # Setting to false means that if the rooms are not manually created,
+    # users cannot be auto-joined since they do not exist.
+    #
+    # Defaults to true. Uncomment the following line to disable automatically
+    # creating auto-join rooms.
+    #
+    #autocreate_auto_join_rooms: false
+    
+    # Whether the auto_join_rooms that are auto-created are available via
+    # federation. Only has an effect if autocreate_auto_join_rooms is true.
+    #
+    # Note that whether a room is federated cannot be modified after
+    # creation.
+    #
+    # Defaults to true: the room will be joinable from other servers.
+    # Uncomment the following to prevent users from other homeservers from
+    # joining these rooms.
+    #
+    #autocreate_auto_join_rooms_federated: false
+    
+    # The room preset to use when auto-creating one of auto_join_rooms. Only has an
+    # effect if autocreate_auto_join_rooms is true.
+    #
+    # This can be one of "public_chat", "private_chat", or "trusted_private_chat".
+    # If a value of "private_chat" or "trusted_private_chat" is used then
+    # auto_join_mxid_localpart must also be configured.
+    #
+    # Defaults to "public_chat", meaning that the room is joinable by anyone, including
+    # federated servers if autocreate_auto_join_rooms_federated is true (the default).
+    # Uncomment the following to require an invitation to join these rooms.
+    #
+    #autocreate_auto_join_room_preset: private_chat
+    
+    # The local part of the user id which is used to create auto_join_rooms if
+    # autocreate_auto_join_rooms is true. If this is not provided then the
+    # initial user account that registers will be used to create the rooms.
+    #
+    # The user id is also used to invite new users to any auto-join rooms which
+    # are set to invite-only.
+    #
+    # It *must* be configured if autocreate_auto_join_room_preset is set to
+    # "private_chat" or "trusted_private_chat".
+    #
+    # Note that this must be specified in order for new users to be correctly
+    # invited to any auto-join rooms which have been set to invite-only (either
+    # at the time of creation or subsequently).
+    #
+    # Note that, if the room already exists, this user must be joined and
+    # have the appropriate permissions to invite new members.
+    #
+    #auto_join_mxid_localpart: system
+    
+    # When auto_join_rooms is specified, setting this flag to false prevents
+    # guest accounts from being automatically joined to the rooms.
+    #
+    # Defaults to true.
+    #
+    #auto_join_rooms_for_guests: false
+    
+    
+    ## Metrics ###
+    
+    # Enable collection and rendering of performance metrics
+    #
+    enable_metrics: true
+    
+    # Enable sentry integration
+    # NOTE: While attempts are made to ensure that the logs don't contain
+    # any sensitive information, this cannot be guaranteed. By enabling
+    # this option the sentry server may therefore receive sensitive
+    # information, and it in turn may then diseminate sensitive information
+    # through insecure notification channels if so configured.
+    #
+    #sentry:
+    #    dsn: "..."
+    
+    # Flags to enable Prometheus metrics which are not suitable to be
+    # enabled by default, either for performance reasons or limited use.
+    #
+    metrics_flags:
+        # Publish synapse_federation_known_servers, a gauge of the number of
+        # servers this homeserver knows about, including itself. May cause
+        # performance problems on large homeservers.
+        #
+        #known_servers: true
+    
+    # Whether or not to report anonymized homeserver usage statistics.
+    report_stats: false
+    
+    # The endpoint to report the anonymized homeserver usage statistics to.
+    # Defaults to https://matrix.org/report-usage-stats/push
+    #
+    #report_stats_endpoint: https://example.com/report-usage-stats/push
+    
+    
+    ## API Configuration ##
+    
+    # A list of event types that will be included in the room_invite_state
+    #
+    #room_invite_state_types:
+    #  - "m.room.join_rules"
+    #  - "m.room.canonical_alias"
+    #  - "m.room.avatar"
+    #  - "m.room.encryption"
+    #  - "m.room.name"
+    
+    
+    # A list of application service config files to use
+    #
+    
+    # Uncomment to enable tracking of application service IP addresses. Implicitly
+    # enables MAU tracking for application service users.
+    #
+    #track_appservice_user_ips: true
+    
+    
+    # a secret which is used to sign access tokens. If none is specified,
+    # the registration_shared_secret is used, if one is given; otherwise,
+    # a secret key is derived from the signing key.
+    #
+    
+    
+    # a secret which is used to calculate HMACs for form values, to stop
+    # falsification of values. Must be specified for the User Consent
+    # forms to work.
+    #
+    # form_secret: <PRIVATE STRING>
+    
+    ## Signing Keys ##
+    
+    # Path to the signing key to sign messages with
+    #
+    signing_key_path: "/data/keys/myr-project.eu.signing.key"
+    
+    # The keys that the server used to sign messages with but won't use
+    # to sign new messages. E.g. it has lost its private key
+    #
+    #old_signing_keys:
+    #  "ed25519:auto":
+    #    # Base64 encoded public key
+    #    key: "The public part of your old signing key."
+    #    # Millisecond POSIX timestamp when the key expired.
+    #    expired_ts: 123456789123
+    
+    # How long key response published by this server is valid for.
+    # Used to set the valid_until_ts in /key/v2 APIs.
+    # Determines how quickly servers will query to check which keys
+    # are still valid.
+    #
+    #key_refresh_interval: 1d
+    trusted_key_servers: []
+    
+    # Uncomment the following to disable the warning that is emitted when the
+    # trusted_key_servers include 'matrix.org'. See above.
+    #
+    suppress_key_server_warning: 
+    
+    
+    # The signing keys to use when acting as a trusted key server. If not specified
+    # defaults to the server signing key.
+    #
+    # Can contain multiple keys, one per line.
+    #
+    #key_server_signing_keys_path: "key_server_signing_keys.key"
+    
+    
+    # Enable SAML2 for registration and login. Uses pysaml2.
+    #
+    # At least one of `sp_config` or `config_path` must be set in this section to
+    # enable SAML login.
+    #
+    # (You will probably also want to set the following options to `false` to
+    # disable the regular login/registration flows:
+    #   * enable_registration
+    #   * password_config.enabled
+    #
+    # Once SAML support is enabled, a metadata file will be exposed at
+    # https://<server>:<port>/_matrix/saml2/metadata.xml, which you may be able to
+    # use to configure your SAML IdP with. Alternatively, you can manually configure
+    # the IdP to use an ACS location of
+    # https://<server>:<port>/_matrix/saml2/authn_response.
+    #
+    saml2_config:
+      # `sp_config` is the configuration for the pysaml2 Service Provider.
+      # See pysaml2 docs for format of config.
+      #
+      # Default values will be used for the 'entityid' and 'service' settings,
+      # so it is not normally necessary to specify them unless you need to
+      # override them.
+      #
+      #sp_config:
+      #  # point this to the IdP's metadata. You can use either a local file or
+      #  # (preferably) a URL.
+      #  metadata:
+      #    #local: ["saml2/idp.xml"]
+      #    remote:
+      #      - url: https://our_idp/metadata.xml
+      #
+      #  # By default, the user has to go to our login page first. If you'd like
+      #  # to allow IdP-initiated login, set 'allow_unsolicited: true' in a
+      #  # 'service.sp' section:
+      #  #
+      #  #service:
+      #  #  sp:
+      #  #    allow_unsolicited: true
+      #
+      #  # The examples below are just used to generate our metadata xml, and you
+      #  # may well not need them, depending on your setup. Alternatively you
+      #  # may need a whole lot more detail - see the pysaml2 docs!
+      #
+      #  description: ["My awesome SP", "en"]
+      #  name: ["Test SP", "en"]
+      #
+      #  organization:
+      #    name: Example com
+      #    display_name:
+      #      - ["Example co", "en"]
+      #    url: "http://example.com"
+      #
+      #  contact_person:
+      #    - given_name: Bob
+      #      sur_name: "the Sysadmin"
+      #      email_address": ["admin@example.com"]
+      #      contact_type": technical
+    
+      # Instead of putting the config inline as above, you can specify a
+      # separate pysaml2 configuration file:
+      #
+      #config_path: "CONFDIR/sp_conf.py"
+    
+      # The lifetime of a SAML session. This defines how long a user has to
+      # complete the authentication process, if allow_unsolicited is unset.
+      # The default is 15 minutes.
+      #
+      #saml_session_lifetime: 5m
+    
+      # An external module can be provided here as a custom solution to
+      # mapping attributes returned from a saml provider onto a matrix user.
+      #
+      user_mapping_provider:
+        # The custom module's class. Uncomment to use a custom module.
+        #
+        #module: mapping_provider.SamlMappingProvider
+    
+        # Custom configuration values for the module. Below options are
+        # intended for the built-in provider, they should be changed if
+        # using a custom module. This section will be passed as a Python
+        # dictionary to the module's `parse_config` method.
+        #
+        config:
+          # The SAML attribute (after mapping via the attribute maps) to use
+          # to derive the Matrix ID from. 'uid' by default.
+          #
+          # Note: This used to be configured by the
+          # saml2_config.mxid_source_attribute option. If that is still
+          # defined, its value will be used instead.
+          #
+          #mxid_source_attribute: displayName
+    
+          # The mapping system to use for mapping the saml attribute onto a
+          # matrix ID.
+          #
+          # Options include:
+          #  * 'hexencode' (which maps unpermitted characters to '=xx')
+          #  * 'dotreplace' (which replaces unpermitted characters with
+          #     '.').
+          # The default is 'hexencode'.
+          #
+          # Note: This used to be configured by the
+          # saml2_config.mxid_mapping option. If that is still defined, its
+          # value will be used instead.
+          #
+          #mxid_mapping: dotreplace
+    
+      # In previous versions of synapse, the mapping from SAML attribute to
+      # MXID was always calculated dynamically rather than stored in a
+      # table. For backwards- compatibility, we will look for user_ids
+      # matching such a pattern before creating a new account.
+      #
+      # This setting controls the SAML attribute which will be used for this
+      # backwards-compatibility lookup. Typically it should be 'uid', but if
+      # the attribute maps are changed, it may be necessary to change it.
+      #
+      # The default is 'uid'.
+      #
+      #grandfathered_mxid_source_attribute: upn
+    
+      # Directory in which Synapse will try to find the template files below.
+      # If not set, default templates from within the Synapse package will be used.
+      #
+      # DO NOT UNCOMMENT THIS SETTING unless you want to customise the templates.
+      # If you *do* uncomment it, you will need to make sure that all the templates
+      # below are in the directory.
+      #
+      # Synapse will look for the following templates in this directory:
+      #
+      # * HTML page to display to users if something goes wrong during the
+      #   authentication process: 'saml_error.html'.
+      #
+      #   When rendering, this template is given the following variables:
+      #     * code: an HTML error code corresponding to the error that is being
+      #       returned (typically 400 or 500)
+      #
+      #     * msg: a textual message describing the error.
+      #
+      #   The variables will automatically be HTML-escaped.
+      #
+      # You can see the default templates at:
+      # https://github.com/matrix-org/synapse/tree/master/synapse/res/templates
+      #
+      #template_dir: "res/templates"
+    
+    # OpenID Connect integration. The following settings can be used to make Synapse
+    # use an OpenID Connect Provider for authentication, instead of its internal
+    # password database.
+    #
+    # See https://github.com/matrix-org/synapse/blob/master/docs/openid.md.
+    #
+    
+    # Enable CAS for registration and login.
+    #
+    #cas_config:
+    #   enabled: true
+    #   server_url: "https://cas-server.com"
+    #   service_url: "https://homeserver.domain.com:8448"
+    #   #displayname_attribute: name
+    #   #required_attributes:
+    #   #    name: value
+    
+    # Additional settings to use with single-sign on systems such as OpenID Connect,
+    # SAML2 and CAS.
+    #
+    sso:
+        # A list of client URLs which are whitelisted so that the user does not
+        # have to confirm giving access to their account to the URL. Any client
+        # whose URL starts with an entry in the following list will not be subject
+        # to an additional confirmation step after the SSO login is completed.
+        #
+        # WARNING: An entry such as "https://my.client" is insecure, because it
+        # will also match "https://my.client.evil.site", exposing your users to
+        # phishing attacks from evil.site. To avoid this, include a slash after the
+        # hostname: "https://my.client/".
+        #
+        # If public_baseurl is set, then the login fallback page (used by clients
+        # that don't natively support the required login flows) is whitelisted in
+        # addition to any URLs in this list.
+        #
+        # By default, this list is empty.
+        #
+        #client_whitelist:
+        #  - https://element.im/develop
+        #  - https://my.custom.client/
+    
+        # Directory in which Synapse will try to find the template files below.
+        # If not set, default templates from within the Synapse package will be used.
+        #
+        # DO NOT UNCOMMENT THIS SETTING unless you want to customise the templates.
+        # If you *do* uncomment it, you will need to make sure that all the templates
+        # below are in the directory.
+        #
+        # Synapse will look for the following templates in this directory:
+        #
+        # * HTML page for a confirmation step before redirecting back to the client
+        #   with the login token: 'sso_redirect_confirm.html'.
+        #
+        #   When rendering, this template is given three variables:
+        #     * redirect_url: the URL the user is about to be redirected to. Needs
+        #                     manual escaping (see
+        #                     https://jinja.palletsprojects.com/en/2.11.x/templates/#html-escaping).
+        #
+        #     * display_url: the same as `redirect_url`, but with the query
+        #                    parameters stripped. The intention is to have a
+        #                    human-readable URL to show to users, not to use it as
+        #                    the final address to redirect to. Needs manual escaping
+        #                    (see https://jinja.palletsprojects.com/en/2.11.x/templates/#html-escaping).
+        #
+        #     * server_name: the homeserver's name.
+        #
+        # * HTML page which notifies the user that they are authenticating to confirm
+        #   an operation on their account during the user interactive authentication
+        #   process: 'sso_auth_confirm.html'.
+        #
+        #   When rendering, this template is given the following variables:
+        #     * redirect_url: the URL the user is about to be redirected to. Needs
+        #                     manual escaping (see
+        #                     https://jinja.palletsprojects.com/en/2.11.x/templates/#html-escaping).
+        #
+        #     * description: the operation which the user is being asked to confirm
+        #
+        # * HTML page shown after a successful user interactive authentication session:
+        #   'sso_auth_success.html'.
+        #
+        #   Note that this page must include the JavaScript which notifies of a successful authentication
+        #   (see https://matrix.org/docs/spec/client_server/r0.6.0#fallback).
+        #
+        #   This template has no additional variables.
+        #
+        # * HTML page shown during single sign-on if a deactivated user (according to Synapse's database)
+        #   attempts to login: 'sso_account_deactivated.html'.
+        #
+        #   This template has no additional variables.
+        #
+        # * HTML page to display to users if something goes wrong during the
+        #   OpenID Connect authentication process: 'sso_error.html'.
+        #
+        #   When rendering, this template is given two variables:
+        #     * error: the technical name of the error
+        #     * error_description: a human-readable message for the error
+        #
+        # You can see the default templates at:
+        # https://github.com/matrix-org/synapse/tree/master/synapse/res/templates
+        #
+        #template_dir: "res/templates"
+    
+    
+    # JSON web token integration. The following settings can be used to make
+    # Synapse JSON web tokens for authentication, instead of its internal
+    # password database.
+    #
+    # Each JSON Web Token needs to contain a "sub" (subject) claim, which is
+    # used as the localpart of the mxid.
+    #
+    # Additionally, the expiration time ("exp"), not before time ("nbf"),
+    # and issued at ("iat") claims are validated if present.
+    #
+    # Note that this is a non-standard login type and client support is
+    # expected to be non-existant.
+    #
+    # See https://github.com/matrix-org/synapse/blob/master/docs/jwt.md.
+    #
+    #jwt_config:
+        # Uncomment the following to enable authorization using JSON web
+        # tokens. Defaults to false.
+        #
+        #enabled: true
+    
+        # This is either the private shared secret or the public key used to
+        # decode the contents of the JSON web token.
+        #
+        # Required if 'enabled' is true.
+        #
+        #secret: "provided-by-your-issuer"
+    
+        # The algorithm used to sign the JSON web token.
+        #
+        # Supported algorithms are listed at
+        # https://pyjwt.readthedocs.io/en/latest/algorithms.html
+        #
+        # Required if 'enabled' is true.
+        #
+        #algorithm: "provided-by-your-issuer"
+    
+        # The issuer to validate the "iss" claim against.
+        #
+        # Optional, if provided the "iss" claim will be required and
+        # validated for all JSON web tokens.
+        #
+        #issuer: "provided-by-your-issuer"
+    
+        # A list of audiences to validate the "aud" claim against.
+        #
+        # Optional, if provided the "aud" claim will be required and
+        # validated for all JSON web tokens.
+        #
+        # Note that if the "aud" claim is included in a JSON web token then
+        # validation will fail without configuring audiences.
+        #
+        #audiences:
+        #    - "provided-by-your-issuer"
+    
+    # Configuration for sending emails from Synapse.
+    #
+    email:
+      enable_notifs: false
+      smtp_host: matrix-exim-relay
+      smtp_port: 25
+    
+      # notif_from defines the "From" address to use when sending emails.
+      # It must be set if email sending is enabled.
+      #
+      # The placeholder '%(app)s' will be replaced by the application name,
+      # which is normally 'app_name' (below), but may be overridden by the
+      # Matrix client application.
+      #
+      # Note that the placeholder must be written '%(app)s', including the
+      # trailing 's'.
+      #
+      notif_from: Matrix <matrix@example.com>
+    
+      # Uncomment the following to enable sending emails for messages that the user
+      # has missed. Disabled by default.
+      #
+      #enable_notifs: true
+    
+      # Uncomment the following to disable automatic subscription to email
+      # notifications for new users. Enabled by default.
+      #
+      #notif_for_new_users: false
+    
+      # Custom URL for client links within the email notifications. By default
+      # links will be based on "https://matrix.to".
+      #
+      # (This setting used to be called element_base_url; the old name is still
+      # supported for backwards-compatibility but is now deprecated.)
+      client_base_url: element.chart-example.local
+    
+      # Configure the time that a validation email will expire after sending.
+      # Defaults to 1h.
+      #
+      #validation_token_lifetime: 15m
+    
+      # DO NOT UNCOMMENT THIS SETTING unless you want to customise the templates.
+      # If you *do* uncomment it, you will need to make sure that all the templates
+      # below are in the directory.
+      #
+      # Synapse will look for the following templates in this directory:
+      #
+      # * The contents of email notifications of missed events: 'notif_mail.html' and
+      #   'notif_mail.txt'.
+      #
+      # * The contents of account expiry notice emails: 'notice_expiry.html' and
+      #   'notice_expiry.txt'.
+      #
+      # * The contents of password reset emails sent by the homeserver:
+      #   'password_reset.html' and 'password_reset.txt'
+      #
+      # * HTML pages for success and failure that a user will see when they follow
+      #   the link in the password reset email: 'password_reset_success.html' and
+      #   'password_reset_failure.html'
+      #
+      # * The contents of address verification emails sent during registration:
+      #   'registration.html' and 'registration.txt'
+      #
+      # * HTML pages for success and failure that a user will see when they follow
+      #   the link in an address verification email sent during registration:
+      #   'registration_success.html' and 'registration_failure.html'
+      #
+      # * The contents of address verification emails sent when an address is added
+      #   to a Matrix account: 'add_threepid.html' and 'add_threepid.txt'
+      #
+      # * HTML pages for success and failure that a user will see when they follow
+      #   the link in an address verification email sent when an address is added
+      #   to a Matrix account: 'add_threepid_success.html' and
+      #   'add_threepid_failure.html'
+      #
+      # You can see the default templates at:
+      # https://github.com/matrix-org/synapse/tree/master/synapse/res/templates
+      #
+      #template_dir: "res/templates"
+    
+      # Subjects to use when sending emails from Synapse.
+      #
+      # The placeholder '%(app)s' will be replaced with the value of the 'app_name'
+      # setting above, or by a value dictated by the Matrix client application.
+      #
+      # If a subject isn't overridden in this configuration file, the value used as
+      # its example will be used.
+      #
+      #subjects:
+    
+        # Subjects for notification emails.
+        #
+        # On top of the '%(app)s' placeholder, these can use the following
+        # placeholders:
+        #
+        #   * '%(person)s', which will be replaced by the display name of the user(s)
+        #      that sent the message(s), e.g. "Alice and Bob".
+        #   * '%(room)s', which will be replaced by the name of the room the
+        #      message(s) have been sent to, e.g. "My super room".
+        #
+        # See the example provided for each setting to see which placeholder can be
+        # used and how to use them.
+        #
+        # Subject to use to notify about one message from one or more user(s) in a
+        # room which has a name.
+        #message_from_person_in_room: "[%(app)s] You have a message on %(app)s from %(person)s in the %(room)s room..."
+        #
+        # Subject to use to notify about one message from one or more user(s) in a
+        # room which doesn't have a name.
+        #message_from_person: "[%(app)s] You have a message on %(app)s from %(person)s..."
+        #
+        # Subject to use to notify about multiple messages from one or more users in
+        # a room which doesn't have a name.
+        #messages_from_person: "[%(app)s] You have messages on %(app)s from %(person)s..."
+        #
+        # Subject to use to notify about multiple messages in a room which has a
+        # name.
+        #messages_in_room: "[%(app)s] You have messages on %(app)s in the %(room)s room..."
+        #
+        # Subject to use to notify about multiple messages in multiple rooms.
+        #messages_in_room_and_others: "[%(app)s] You have messages on %(app)s in the %(room)s room and others..."
+        #
+        # Subject to use to notify about multiple messages from multiple persons in
+        # multiple rooms. This is similar to the setting above except it's used when
+        # the room in which the notification was triggered has no name.
+        #messages_from_person_and_others: "[%(app)s] You have messages on %(app)s from %(person)s and others..."
+        #
+        # Subject to use to notify about an invite to a room which has a name.
+        #invite_from_person_to_room: "[%(app)s] %(person)s has invited you to join the %(room)s room on %(app)s..."
+        #
+        # Subject to use to notify about an invite to a room which doesn't have a
+        # name.
+        #invite_from_person: "[%(app)s] %(person)s has invited you to chat on %(app)s..."
+    
+        # Subject for emails related to account administration.
+        #
+        # On top of the '%(app)s' placeholder, these one can use the
+        # '%(server_name)s' placeholder, which will be replaced by the value of the
+        # 'server_name' setting in your Synapse configuration.
+        #
+        # Subject to use when sending a password reset email.
+        #password_reset: "[%(server_name)s] Password reset"
+        #
+        # Subject to use when sending a verification email to assert an address's
+        # ownership.
+        #email_validation: "[%(server_name)s] Validate your email"
+    
+    
+    # Password providers allow homeserver administrators to integrate
+    # their Synapse installation with existing authentication methods
+    # ex. LDAP, external tokens, etc.
+    #
+    # For more information and known implementations, please see
+    # https://github.com/matrix-org/synapse/blob/master/docs/password_auth_providers.md
+    #
+    # Note: instances wishing to use SAML or CAS authentication should
+    # instead use the `saml2_config` or `cas_config` options,
+    # respectively.
+    #
+    password_providers:
+    #    # Example config for an LDAP auth provider
+    #    - module: "ldap_auth_provider.LdapAuthProvider"
+    #      config:
+    #        enabled: true
+    #        uri: "ldap://ldap.example.com:389"
+    #        start_tls: true
+    #        base: "ou=users,dc=example,dc=com"
+    #        attributes:
+    #           uid: "cn"
+    #           mail: "email"
+    #           name: "givenName"
+    #        #bind_dn:
+    #        #bind_password:
+    #        #filter: "(objectClass=posixAccount)"
+    
+    
+    
+    # Clients requesting push notifications can either have the body of
+    # the message sent in the notification poke along with other details
+    # like the sender, or just the event ID and room ID (`event_id_only`).
+    # If clients choose the former, this option controls whether the
+    # notification request includes the content of the event (other details
+    # like the sender are still included). For `event_id_only` push, it
+    # has no effect.
+    #
+    # For modern android devices the notification content will still appear
+    # because it is loaded by the app. iPhone, however will send a
+    # notification saying only that a message arrived and who it came from.
+    #
+    #push:
+    #  include_content: true
+    
+    
+    # Spam checkers are third-party modules that can block specific actions
+    # of local users, such as creating rooms and registering undesirable
+    # usernames, as well as remote users by redacting incoming events.
+    #
+    spam_checker:
+       #- module: "my_custom_project.SuperSpamChecker"
+       #  config:
+       #    example_option: 'things'
+       #- module: "some_other_project.BadEventStopper"
+       #  config:
+       #    example_stop_events_from: ['@bad:example.com']
+    
+    
+    ## Rooms ##
+    
+    # Controls whether locally-created rooms should be end-to-end encrypted by
+    # default.
+    #
+    # Possible options are "all", "invite", and "off". They are defined as:
+    #
+    # * "all": any locally-created room
+    # * "invite": any room created with the "private_chat" or "trusted_private_chat"
+    #             room creation presets
+    # * "off": this option will take no effect
+    #
+    # The default value is "off".
+    #
+    # Note that this option will only affect rooms created after it is set. It
+    # will also not affect rooms created by other servers.
+    #
+    encryption_enabled_by_default_for_room_type: invite
+    
+    
+    # Uncomment to allow non-server-admin users to create groups on this server
+    #
+    #enable_group_creation: true
+    
+    # If enabled, non server admins can only create groups with local parts
+    # starting with this prefix
+    #
+    #group_creation_prefix: "unofficial/"
+    
+    
+    
+    # User Directory configuration
+    #
+    # 'enabled' defines whether users can search the user directory. If
+    # false then empty responses are returned to all queries. Defaults to
+    # true.
+    #
+    # 'search_all_users' defines whether to search all users visible to your HS
+    # when searching the user directory, rather than limiting to users visible
+    # in public rooms.  Defaults to false.  If you set it True, you'll have to
+    # rebuild the user_directory search indexes, see
+    # https://github.com/matrix-org/synapse/blob/master/docs/user_directory.md
+    #
+    #user_directory:
+    #  enabled: true
+    #  search_all_users: false
+    
+    
+    # User Consent configuration
+    #
+    # for detailed instructions, see
+    # https://github.com/matrix-org/synapse/blob/master/docs/consent_tracking.md
+    #
+    # Parts of this section are required if enabling the 'consent' resource under
+    # 'listeners', in particular 'template_dir' and 'version'.
+    #
+    # 'template_dir' gives the location of the templates for the HTML forms.
+    # This directory should contain one subdirectory per language (eg, 'en', 'fr'),
+    # and each language directory should contain the policy document (named as
+    # '<version>.html') and a success page (success.html).
+    #
+    # 'version' specifies the 'current' version of the policy document. It defines
+    # the version to be served by the consent resource if there is no 'v'
+    # parameter.
+    #
+    # 'server_notice_content', if enabled, will send a user a "Server Notice"
+    # asking them to consent to the privacy policy. The 'server_notices' section
+    # must also be configured for this to work. Notices will *not* be sent to
+    # guest users unless 'send_server_notice_to_guests' is set to true.
+    #
+    # 'block_events_error', if set, will block any attempts to send events
+    # until the user consents to the privacy policy. The value of the setting is
+    # used as the text of the error.
+    #
+    # 'require_at_registration', if enabled, will add a step to the registration
+    # process, similar to how captcha works. Users will be required to accept the
+    # policy before their account is created.
+    #
+    # 'policy_name' is the display name of the policy users will see when registering
+    # for an account. Has no effect unless `require_at_registration` is enabled.
+    # Defaults to "Privacy Policy".
+    #
+    #user_consent:
+    #  template_dir: res/templates/privacy
+    #  version: 1.0
+    #  server_notice_content:
+    #    msgtype: m.text
+    #    body: >-
+    #      To continue using this homeserver you must review and agree to the
+    #      terms and conditions at %(consent_uri)s
+    #  send_server_notice_to_guests: true
+    #  block_events_error: >-
+    #    To continue using this homeserver you must review and agree to the
+    #    terms and conditions at %(consent_uri)s
+    #  require_at_registration: false
+    #  policy_name: Privacy Policy
+    #
+    
+    
+    
+    # Local statistics collection. Used in populating the room directory.
+    #
+    # 'bucket_size' controls how large each statistics timeslice is. It can
+    # be defined in a human readable short form -- e.g. "1d", "1y".
+    #
+    # 'retention' controls how long historical statistics will be kept for.
+    # It can be defined in a human readable short form -- e.g. "1d", "1y".
+    #
+    #
+    #stats:
+    #   enabled: true
+    #   bucket_size: 1d
+    #   retention: 1y
+    
+    
+    # Server Notices room configuration
+    #
+    # Uncomment this section to enable a room which can be used to send notices
+    # from the server to users. It is a special room which cannot be left; notices
+    # come from a special "notices" user id.
+    #
+    # If you uncomment this section, you *must* define the system_mxid_localpart
+    # setting, which defines the id of the user which will be used to send the
+    # notices.
+    #
+    # It's also possible to override the room name, the display name of the
+    # "notices" user, and the avatar for the user.
+    #
+    #server_notices:
+    #  system_mxid_localpart: notices
+    #  system_mxid_display_name: "Server Notices"
+    #  system_mxid_avatar_url: "mxc://server.com/oumMVlgDnLYFaPVkExemNVVZ"
+    #  room_name: "Server Notices"
+    
+    
+    
+    # Uncomment to disable searching the public room list. When disabled
+    # blocks searching local and remote room lists for local and remote
+    # users by always returning an empty list for all queries.
+    #
+    #enable_room_list_search: false
+    
+    # The `alias_creation` option controls who's allowed to create aliases
+    # on this server.
+    #
+    # The format of this option is a list of rules that contain globs that
+    # match against user_id, room_id and the new alias (fully qualified with
+    # server name). The action in the first rule that matches is taken,
+    # which can currently either be "allow" or "deny".
+    #
+    # Missing user_id/room_id/alias fields default to "*".
+    #
+    # If no rules match the request is denied. An empty list means no one
+    # can create aliases.
+    #
+    # Options for the rules include:
+    #
+    #   user_id: Matches against the creator of the alias
+    #   alias: Matches against the alias being created
+    #   room_id: Matches against the room ID the alias is being pointed at
+    #   action: Whether to "allow" or "deny" the request if the rule matches
+    #
+    # The default is:
+    #
+    #alias_creation_rules:
+    #  - user_id: "*"
+    #    alias: "*"
+    #    room_id: "*"
+    #    action: allow
+    
+    # The `room_list_publication_rules` option controls who can publish and
+    # which rooms can be published in the public room list.
+    #
+    # The format of this option is the same as that for
+    # `alias_creation_rules`.
+    #
+    # If the room has one or more aliases associated with it, only one of
+    # the aliases needs to match the alias rule. If there are no aliases
+    # then only rules with `alias: *` match.
+    #
+    # If no rules match the request is denied. An empty list means no one
+    # can publish rooms.
+    #
+    # Options for the rules include:
+    #
+    #   user_id: Matches agaisnt the creator of the alias
+    #   room_id: Matches against the room ID being published
+    #   alias: Matches against any current local or canonical aliases
+    #            associated with the room
+    #   action: Whether to "allow" or "deny" the request if the rule matches
+    #
+    # The default is:
+    #
+    #room_list_publication_rules:
+    #  - user_id: "*"
+    #    alias: "*"
+    #    room_id: "*"
+    #    action: allow
+    
+    
+    # Server admins can define a Python module that implements extra rules for
+    # allowing or denying incoming events. In order to work, this module needs to
+    # override the methods defined in synapse/events/third_party_rules.py.
+    #
+    # This feature is designed to be used in closed federations only, where each
+    # participating server enforces the same rules.
+    #
+    #third_party_event_rules:
+    #  module: "my_custom_project.SuperRulesSet"
+    #  config:
+    #    example_option: 'things'
+    
+    
+    ## Opentracing ##
+    
+    # These settings enable opentracing, which implements distributed tracing.
+    # This allows you to observe the causal chains of events across servers
+    # including requests, key lookups etc., across any server running
+    # synapse or any other other services which supports opentracing
+    # (specifically those implemented with Jaeger).
+    #
+    opentracing:
+        # tracing is disabled by default. Uncomment the following line to enable it.
+        #
+        #enabled: true
+    
+        # The list of homeservers we wish to send and receive span contexts and span baggage.
+        # See docs/opentracing.rst
+        # This is a list of regexes which are matched against the server_name of the
+        # homeserver.
+        #
+        # By defult, it is empty, so no servers are matched.
+        #
+        #homeserver_whitelist:
+        #  - ".*"
+    
+        # Jaeger can be configured to sample traces at different rates.
+        # All configuration options provided by Jaeger can be set here.
+        # Jaeger's configuration mostly related to trace sampling which
+        # is documented here:
+        # https://www.jaegertracing.io/docs/1.13/sampling/.
+        #
+        #jaeger_config:
+        #  sampler:
+        #    type: const
+        #    param: 1
+    
+        #  Logging whether spans were started and reported
+        #
+        #  logging:
+        #    false
+    
+    
+    serve_server_wellknown: true
+  myr-project.eu.log.config: |
+    version: 1
+
+    formatters:
+      precise:
+        format: '%(asctime)s - %(name)s - %(lineno)d - %(levelname)s - %(request)s - %(message)s'
+
+    filters:
+      context:
+        (): synapse.util.logcontext.LoggingContextFilter
+        request: ""
+
+    handlers:
+      console:
+        class: logging.StreamHandler
+        formatter: precise
+        filters: [context]
+
+    loggers:
+      synapse:
+        level: WARNING
+
+      synapse.storage.SQL:
+        # beware: increasing this to DEBUG will make synapse log sensitive
+        # information such as access tokens.
+        level: WARNING
+
+
+    root:
+      level: WARNING
+      handlers: [console]
+---
+# Source: matrix/charts/matrix/templates/synapse/config-pvc.yaml
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: matrix-storage
-  namespace: matrix
+  name: matrix-synapse-config
+  labels:
+    helm.sh/chart: matrix-18.4.0
+    app.kubernetes.io/version: "v1.122.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: "matrix"
+    component: synapse
 spec:
-  storageClassName: local-path
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Mi
+---
+# Source: matrix/charts/matrix/templates/synapse/media-pvc.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: matrix-media-store
+  labels:
+    helm.sh/chart: matrix-18.4.0
+    app.kubernetes.io/version: "v1.122.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: "matrix"
+    component: synapse
+spec:
   accessModes:
     - ReadWriteOnce
   resources:
     requests:
       storage: 10Gi
 ---
+# Source: matrix/charts/matrix/templates/synapse/signing-key-pvc.yaml
 apiVersion: v1
-kind: ConfigMap
+kind: PersistentVolumeClaim
 metadata:
-  name: matrix
-  namespace: matrix
-data:
-  homeserver.yaml: |
-    server_name: "matrix.myr-project.eu"
-    listeners:
-      - port: 8008
-        tls: false
-        type: http
-        x_forwarded: true
-        resources:
-          - names: [client, federation]
-            compress: false
-      - port: 8448
-        tls: false
-        type: http
-        x_forwarded: true
-        resources:
-          - names: [federation]
-            compress: false
-    database:
-      name: psycopg2
-      args:
-        user: app
-        password: password
-        database: synapse
-        host: cluster-rw.database.svc.cluster.local
-        port: 5432
-    media_store_path: /data
-    registration_shared_secret: "CFMD=5=bw6SeSvv;,cm1t6eXiQ9Pt1,jm=V8.NrN1eFlM8q18_"
-    report_stats: true
-    macaroon_secret_key: "wB_oCj=dqDGN8-~*bDr-Sn#HUa2vYnLoY0KRJP6nWnHUVo#-Tq"
-    form_secret: "6wWs=wqP6bBAjwibVEkj91xh6oBK&TwwPOO2RqUf5Ba,TiXh*-"
-    signing_key_path: "/config/matrix-kub-test.duckdns.org.signing.key"
-    trusted_key_servers:
-      - server_name: "matrix.org"
-    enable_registration: true
-    registration_requires_token: false
-    enable_registration_without_verification: true
-  matrix-kub-test.duckdns.org.log.config: |
-    version: 1
-    formatters:
-      precise:
-        format: '%(asctime)s - %(name)s - %(lineno)d - %(levelname)s - %(request)s - %(message)s'
-    handlers:
-      console:
-        class: logging.StreamHandler
-        formatter: precise
-    loggers:
-      _placeholder:
-        level: "INFO"
-      synapse.storage.SQL:
-        level: INFO
-    root:
-      level: INFO
-      handlers: [console]
-    disable_existing_loggers: false
+  name: matrix-signing-key
+  labels:
+    helm.sh/chart: matrix-18.4.0
+    app.kubernetes.io/version: "v1.122.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: "matrix"
+    component: synapse
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Mi
 ---
+# Source: matrix/charts/matrix/templates/synapse/service.yaml
 apiVersion: v1
-kind: Secret
+kind: Service
 metadata:
-  name: matrix-key
-  namespace: matrix
-stringData:
-  matrix-kub-test.duckdns.org.signing.key: |
-    ed25519 a_LfZN w98X7LoMLkiGUvUZszq1Z4OeriaHeF/XkOvwUtHZeOo
+  name: matrix-synapse
+  labels:
+    helm.sh/chart: matrix-18.4.0
+    app.kubernetes.io/version: "v1.122.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: "matrix"
+    component: synapse
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/path: "/_synapse/metrics"
+    prometheus.io/port: "9092"
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: http
+      protocol: TCP
+      name: http
+    - port: 9092
+      targetPort: metrics
+      protocol: TCP
+      name: metrics
+  selector:
+    app.kubernetes.io/name: matrix-synapse
+    app.kubernetes.io/instance: matrix
 ---
+# Source: matrix/charts/matrix/templates/synapse/deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  name: matrix-synapse
   labels:
-    k8s-app: matrix
-  name: matrix
-  namespace: matrix
+    helm.sh/chart: matrix-18.4.0
+    app.kubernetes.io/version: "v1.122.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: "matrix"
+    component: synapse
 spec:
-  progressDeadlineSeconds: 600
   replicas: 1
-  revisionHistoryLimit: 10
+  revisionHistoryLimit: 2
   selector:
     matchLabels:
-      k8s-app: matrix
+      app.kubernetes.io/name: matrix-synapse
+      app.kubernetes.io/instance: matrix
   strategy:
     type: Recreate
   template:
     metadata:
-      creationTimestamp: null
       labels:
-        k8s-app: matrix
-      name: matrix
+        app.kubernetes.io/name: matrix-synapse
+        app.kubernetes.io/instance: matrix
+      annotations:
+        # re-roll deployment on config change
+        checksum/synapse-config: 82a64f55d5fab16fd7d1bbc8dcf3a7ebf44e46d845b655f7760128fcf70eebf5
     spec:
-      containers:
-        - env:
-            - name: SYNAPSE_CONFIG_DIR
-              value: /config
-            - name: SYNAPSE_CONFIG_PATH
-              value: /config/homeserver.yaml
-          image: matrixdotorg/synapse:latest
-          imagePullPolicy: Always
-          name: matrix
-          terminationMessagePath: /dev/termination-log
-          terminationMessagePolicy: File
-          volumeMounts:
-            - mountPath: /config/homeserver.yaml
-              name: matrix-cm
-              subPath: homeserver.yaml
-            - mountPath: /config/matrix-kub-test.duckdns.org.log.config
-              name: matrix-cm
-              subPath: matrix-kub-test.duckdns.org.log.config
-            - mountPath: /data
-              name: matrix-pv
-              subPath: matrix
-            - mountPath: /config/matrix-kub-test.duckdns.org.signing.key
-              name: matrix-key
-              subPath: matrix-kub-test.duckdns.org.signing.key
-      dnsPolicy: ClusterFirst
-      restartPolicy: Always
       securityContext:
-        fsGroup: 991
-      schedulerName: default-scheduler
-      terminationGracePeriodSeconds: 10
-      volumes:
-        - name: matrix-key
-          secret:
-            defaultMode: 420
-            items:
-              - key: matrix-kub-test.duckdns.org.signing.key
-                path: matrix-kub-test.duckdns.org.signing.key
-            secretName: matrix-key
-        - name: matrix-pv
-          persistentVolumeClaim:
-            claimName: matrix-storage
-        - name: matrix-cm
-          configMap:
-            name: matrix
-            defaultMode: 420
-            items:
-              - key: homeserver.yaml
-                path: homeserver.yaml
-              - key: matrix-kub-test.duckdns.org.log.config
-                path: matrix-kub-test.duckdns.org.log.config
----
-apiVersion: v1
-kind: Service
-metadata:
-  labels:
-    k8s-app: postgres
-  name: matrix
-  namespace: matrix
-spec:
-  ports:
-    - name: matrix
-      port: 8008
-      protocol: TCP
-      targetPort: 8008
-  selector:
-    k8s-app: matrix
-  sessionAffinity: None
-  type: ClusterIP
----
-apiVersion: traefik.io/v1alpha1
-kind: Middleware
-metadata:
-  name: well-known-redirect
-  namespace: matrix
-spec:
-  redirectRegex:
-    regex: "^/.well-known/matrix/(.*)"
-    replacement: "https://matrix.myr-project.eu:31501/.well-known/matrix/$1"
-    permanent: true
----
-apiVersion: traefik.io/v1alpha1
-kind: Middleware
-metadata:
-  name: cors-headers
-  namespace: matrix
-spec:
-  headers:
-    accessControlAllowOriginList:
-      - "*"
-    accessControlAllowMethods:
-      - GET
-      - PUT
-      - OPTIONS
-    accessControlAllowHeaders:
-      - Content-Type
-      - Authorization
-      - X-Requested-With
-    addVaryHeader: true
-    accessControlAllowCredentials: true
----
-apiVersion: traefik.io/v1alpha1
-kind: IngressRoute
-metadata:
-  name: matrix-ingress
-  namespace: matrix
-spec:
-  entryPoints:
-    - websecure
-  routes:
-    - match: Host(`matrix.myr-project.eu`)
-      kind: Rule
-      middlewares:
-        - name: well-known-redirect
-        - name: cors-headers
-      services:
-        - name: matrix
-          port: 8008
-  tls:
-    secretName: matrix-ingressroute-certificate
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: well-known-matrix
-  namespace: matrix
-data:
-  client: |
-    {
-      "m.homeserver": {
-        "base_url": "https://matrix.myr-project.eu:31501"
-      },
-      "m.identity_server": {
-        "base_url": "https://vector.im"
-      }
-    }
-  server: |
-    {
-      "m.server": "matrix.myr-project.eu:31501"
-    }
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: well-known-server
-  namespace: matrix
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: well-known-server
-  template:
-    metadata:
-      labels:
-        app: well-known-server
-    spec:
-      containers:
-        - name: nginx
-          image: nginx
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        runAsNonRoot: true
+      initContainers:
+        - name: add-secret-values-to-config
+          image: "mikefarah/yq:latest"
+          imagePullPolicy: Always
+          env:
+            - name: DATABASE_HOSTNAME
+              valueFrom:
+                secretKeyRef:
+                  name: matrix-db-secret
+                  key: hostname
+            - name: DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: matrix-db-secret
+                  key: database
+            - name: DATABASE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: matrix-db-secret
+                  key: username
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: matrix-db-secret
+                  key: password
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              cp /initial/homeserver.yaml /data/homeserver.yaml && \
+              cp /initial/myr-project.eu.log.config /data/ && \
+              yq eval -i '.database.args.host = env(DATABASE_HOSTNAME)' /data/homeserver.yaml && \
+              yq eval -i '.database.args.database = env(DATABASE)' /data/homeserver.yaml && \
+              yq eval -i '.database.args.user = env(DATABASE_USERNAME)' /data/homeserver.yaml && \
+              yq eval -i '.database.args.password = env(DATABASE_PASSWORD)' /data/homeserver.yaml
           volumeMounts:
-            - name: well-known-volume
-              mountPath: /usr/share/nginx/html/.well-known/matrix
+            - name: synapse-initial-config
+              mountPath: "/initial"
+            - name: synapse-config
+              mountPath: /data
+      # generate signing key only on fresh install
+        - name: generate-signing-key
+          image: matrixdotorg/synapse:v1.122.0
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: SYNAPSE_SERVER_NAME
+              value: myr-project.eu
+            - name: SYNAPSE_REPORT_STATS
+              value: "no"
+          command: ["python"]
+          args:
+            - "-m"
+            - "synapse.app.homeserver"
+            - "--config-path"
+            - "/data/homeserver.yaml"
+            - "--keys-directory"
+            - "/data/keys"
+            - "--generate-keys"
+          volumeMounts:
+            - name: synapse-config
+              mountPath: /data
+            - name: signing-key
+              mountPath: /data/keys 
+      containers:
+        - name: "synapse"
+          image: matrixdotorg/synapse:v1.122.0
+          imagePullPolicy: IfNotPresent
+          env:
+          ports:
+            - name: http
+              containerPort: 8008
+              protocol: TCP
+            - name: metrics
+              containerPort: 9092
+              protocol: TCP
+          volumeMounts:
+            - name: synapse-config
+              mountPath: /data
+            - name: signing-key
+              mountPath: /data/keys
+            - name: media-store
+              mountPath: /data/media_store
+            - name: uploads
+              mountPath: /data/uploads
+            - name: tmp
+              mountPath: /tmp
+          readinessProbe:
+            httpGet:
+              path: /_matrix/static/
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+          startupProbe:
+            httpGet:
+              path: /_matrix/static/
+              port: http
+            failureThreshold: 6
+            periodSeconds: 5
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /_matrix/static/
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+          securityContext:
+            capabilities:
+              drop:
+                - ALL
+            runAsGroup: 1000
+            runAsUser: 1000
+            runAsNonRoot: true
+            readOnlyRootFilesystem: false
+            allowPrivilegeEscalation: false
       volumes:
-        - name: well-known-volume
+        - name: synapse-initial-config
           configMap:
-            name: well-known-matrix
+            name: matrix-initial-synapse-config
+        - name: synapse-config
+          persistentVolumeClaim:
+            claimName: matrix-synapse-config
+            
+        - name: signing-key
+          persistentVolumeClaim:
+            claimName: matrix-signing-key
+            
+        - name: media-store
+          persistentVolumeClaim:
+            claimName: matrix-media-store
+            
+        # Ephemeral in-progress uploads
+        - name: uploads
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
 ---
-apiVersion: v1
-kind: Service
+# Source: matrix/charts/matrix/templates/element/ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
 metadata:
-  name: well-known
-  namespace: matrix
+  name: matrix-element
+  labels:
+    helm.sh/chart: matrix-18.4.0
+    app.kubernetes.io/version: "v1.122.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: "matrix"
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-staging
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      proxy_intercept_errors off;
 spec:
-  selector:
-    app: well-known-server
-  ports:
-    - protocol: TCP
-      port: 80
-      targetPort: 80
----
-apiVersion: traefik.io/v1alpha1
-kind: IngressRoute
-metadata:
-  name: well-known-ingress
-  namespace: matrix
-spec:
-  entryPoints:
-    - websecure
-  routes:
-    - match: Host(`matrix.myr-project.eu`) && PathPrefix(`/.well-known/matrix/`)
-      kind: Rule
-      middlewares:
-        - name: cors-headers
-      services:
-        - name: well-known
-          port: 80
+  ingressClassName: nginx
   tls:
-    secretName: matrix-ingressroute-certificate
+    - hosts:
+      - element.chart-example.local
+      secretName: element-tls
+  rules:
+    - host: element.chart-example.local
+      http:
+        paths:
+          - path: "/"
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: "matrix-element"
+                port: 
+                  number: 80

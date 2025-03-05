@@ -1,0 +1,32 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: wiki-ingressroute-certificate
+  namespace: wiki
+spec:
+  # Secret names are always required.
+  secretName: wiki-ingressroute-certificate
+
+  issuerRef:
+    name: digitalocean-clusterissuer
+    kind: ClusterIssuer
+
+  dnsNames:
+    - wyki.myr-project.eu
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: ingress-route-wiki
+  namespace: wiki
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`wyki.myr-project.eu`)
+      kind: Rule
+      services:
+        - name: matrix-wiki
+          port: 80
+  tls:
+    secretName: wiki-ingressroute-certificate
